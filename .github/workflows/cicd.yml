@@ -11,22 +11,22 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-  
-  steps:
-  - id: 'auth'
-    uses: 'google-github-actions/auth@v0'
-    with:
-      workload_identity_provider: 'projects/889821420252/locations/global/workloadIdentityPools/github-action/providers/github-action'
-      service_account: 'github-action@lawtalk-bigquery.iam.gserviceaccount.com
+    
+    steps:
+    - id: 'auth'
+      uses: 'google-github-actions/auth@v0'
+      with:
+        workload_identity_provider: 'projects/889821420252/locations/global/workloadIdentityPools/github-action/providers/github-action'
+        service_account: 'github-action@lawtalk-bigquery.iam.gserviceaccount.com'
 
-  - name: Checkout
-    uses: actions/checkout@v2
-    with:
-      ref: main
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        ref: main
       
-  - name: Setup gcloud
-    uses: google-github-actions/setup-gcloud@v0
+    - name: Setup gcloud
+      uses: google-github-actions/setup-gcloud@v0
   
-  - name: Deploy
-    run: |
+    - name: Deploy
+      run: |
         gsutil -m rsync -r -c "./batch/dags" "gs://lja-test/dags"
