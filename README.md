@@ -3,6 +3,7 @@
 
 # 폴더 구조 설명
 adhoc : adhoc 분석 소스코드(sql,python) 저장소
+
 batch : batch 작업(dags) 소스코드 저장소
   - dags : composer의 airflow dags와 연동되어 있음(CI/CD 적용됨)
 
