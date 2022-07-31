@@ -27,7 +27,7 @@ jobs:
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v0
       with:
-        export_default_credentials: true
+        persist-credentials: false
   
     - name: Deploy
       run: |
