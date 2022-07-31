@@ -1,4 +1,4 @@
-
+## test insert from lja
 import os
 import sys
 import warnings
@@ -47,7 +47,7 @@ with DAG(
     # schedule_interval = '0 0 11 13,26 * ? *',
     tags=["cj_kim","keyword_review"],
     default_args={
-        "owner": "cj_kim", 
+        "owner": "cj_kim",
         "retries": 30,
         "retry_delay": timedelta(minutes=1),
     }
@@ -56,8 +56,8 @@ with DAG(
     start = DummyOperator(
         task_id="start"
     )
-    
-    
+
+
     # [START howto_operator_bash]
     ip_chk = BashOperator(
         task_id='ip_check',
