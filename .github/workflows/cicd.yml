@@ -29,4 +29,4 @@ jobs:
   
     - name: Deploy
       run: |
-        gsutil -m rsync -r -c "./batch/dags" "gs://lja-test/dags"
+        gsutil -m rsync -r -c "./batch/dags" "gs://us-central1-planning-data-2-6f03343b-bucket/dags"
