@@ -1,24 +1,53 @@
-SELECT
-  FORMAT_DATE('%Y%m%d', d) as b_date,
-  d AS full_date,
-  EXTRACT(YEAR FROM d) AS year,
-  EXTRACT(ISOWEEK FROM d) AS year_week,
-  EXTRACT(DAY FROM d) AS year_day,
-  EXTRACT(YEAR FROM d) AS fiscal_year,
-  FORMAT_DATE('%Q', d) as fiscal_qtr,
-  EXTRACT(MONTH FROM d) AS month,
-  FORMAT_DATE('%B', d) as month_name,
-  safe_cast(case when FORMAT_DATE('%w', d)='0' then '7' else FORMAT_DATE('%w', d) end as int64)  AS week_day,
-  FORMAT_DATE('%A', d) AS day_name,
-  (CASE WHEN FORMAT_DATE('%A', d) IN ('Sunday', 'Saturday') THEN 0 ELSE 1 END) AS day_is_weekday,
-  date_sub(d, interval 1 month) as mom_date,
-  FORMAT_DATE('%Y%m%d',date_sub(d, interval 1 month)) as mom_date_string,
-  date_sub(d, interval 7 day) as wow_date,
-  FORMAT_DATE('%Y%m%d',date_sub(d, interval 7 day)) as wow_date_string,
-FROM (
-  SELECT
-    *
-  FROM
-    UNNEST(GENERATE_DATE_ARRAY('2014-01-01', '2050-12-31', INTERVAL 1 DAY)) AS d 
-    )
+
+select b_date
+     , full_date
+     , year
+     , year_week
+     , year_day
+     , fiscal_year
+     , fiscal_qtr
+     , month
+     , month_name
+     , week_day
+     , day_name
+     , day_is_weekday
+     , mom_date
+     , mom_date_string
+     , wow_date
+     , wow_date_string
+     , week_start_date
+     , week_end_date
+     , substring(week_start_date,1,6)||'W'||safe_cast(dense_rank() over(partition by substring(week_start_date,1,6) order by substring(week_start_date,7,2)) as string) as b_week
+FROM
+(
+  select *
+       , min(b_date) over(partition by year,year_week) as week_start_date
+       , max(b_date) over(partition by year,year_week) as week_end_date
+  from
+  (
+    SELECT
+      FORMAT_DATE('%Y%m%d', d) as b_date,
+      d AS full_date,
+      EXTRACT(YEAR FROM d) AS year,
+      EXTRACT(ISOWEEK FROM d) AS year_week,
+      EXTRACT(DAY FROM d) AS year_day,
+      EXTRACT(YEAR FROM d) AS fiscal_year,
+      FORMAT_DATE('%Q', d) as fiscal_qtr,
+      EXTRACT(MONTH FROM d) AS month,
+      FORMAT_DATE('%B', d) as month_name,
+      safe_cast(case when FORMAT_DATE('%w', d)='0' then '7' else FORMAT_DATE('%w', d) end as int64)  AS week_day,
+      FORMAT_DATE('%A', d) AS day_name,
+      (CASE WHEN FORMAT_DATE('%A', d) IN ('Sunday', 'Saturday') THEN 0 ELSE 1 END) AS day_is_weekday,
+      date_sub(d, interval 1 month) as mom_date,
+      FORMAT_DATE('%Y%m%d',date_sub(d, interval 1 month)) as mom_date_string,
+      date_sub(d, interval 7 day) as wow_date,
+      FORMAT_DATE('%Y%m%d',date_sub(d, interval 7 day)) as wow_date_string
+    FROM (
+      SELECT
+        *
+      FROM
+        UNNEST(GENERATE_DATE_ARRAY('2014-01-01', '2050-12-31', INTERVAL 1 DAY)) AS d
+        )
+  ) a
+) x
  ;
