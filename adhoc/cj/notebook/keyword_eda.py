@@ -418,3 +418,6 @@ get_gini(ga[(ga.search_keyword != ga.expose_reason) & (ga.search_keyword.notna()
 
 get_gini(ga.groupby("lawyer_id").event_date.count().reset_index(), "event_date")
 get_gini(ga.groupby("lawyer_id").user_pseudo_id.nunique().reset_index(), "user_pseudo_id")
+
+
+"pull test"
