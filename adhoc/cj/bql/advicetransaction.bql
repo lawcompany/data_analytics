@@ -1,0 +1,46 @@
+WITH advicetransaction_tmp AS (
+SELECT
+  _id,
+  row_number() over(PARTITION BY advice ORDER BY updatedAt DESC) AS no_by_advice,
+  number, 
+  DATETIME(createdAt, 'Asia/Seoul') as createdAt,
+  DATETIME(updatedAt, 'Asia/Seoul') as updatedAt,
+  DATETIME(requestedAt, 'Asia/Seoul') as requestedAt,
+  advice,
+  user,
+  lawyer AS lawyer_id,
+  seller,
+  tid,
+  status,
+  method,
+  originFee,
+  canceled,
+  coupon,
+  metadata,
+  REGEXP_EXTRACT(metadata, r"'page': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_page,
+  REGEXP_EXTRACT(metadata, r"'source': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_source,
+  REGEXP_EXTRACT(metadata, r"'element': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_element,
+  REGEXP_EXTRACT(metadata, r"'position': ([0-9]+),") as metadata_position,
+  REGEXP_EXTRACT(metadata, r"'context': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_context,
+  REGEXP_EXTRACT(metadata, r"'contextAdditional': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_contextAdditional,
+  REGEXP_EXTRACT(metadata, r"'extraInfo': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_extraInfo,
+FROM `lawtalk-bigquery.raw.advicetransactions`
+where 1=1
+  AND DATE(DATETIME(createdAt, 'Asia/Seoul')) BETWEEN '2022-07-01' AND '2022-07-15'
+  AND status = 'paid'
+)
+, slug_lawyers AS (
+SELECT 
+  _id
+  , slug
+FROM `lawtalk-bigquery.raw.lawyers` AS B
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{4}-[가-힣]+')
+)
+SELECT 
+    A.*
+    , B.slug
+FROM advicetransaction_tmp AS A
+LEFT JOIN slug_lawyers AS B
+ON A.lawyer_id = B._id
+WHERE 1 = 1
