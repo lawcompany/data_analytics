@@ -429,6 +429,16 @@ WHERE 1 = 1
 	AND event_name = 'tag.상단검색창직접입력'
 '''
 
+lawyer_query = '''
+SELECT 
+  _id
+  , slug
+  , name
+FROM `lawtalk-bigquery.raw.lawyers` AS B
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{4}-[가-힣]+')
+'''
+
 adorder = bigquery_to_pandas(adorder_query)
 advice = bigquery_to_pandas(advice_query)
 advicet = bigquery_to_pandas(advicet_query)
@@ -557,12 +567,24 @@ advicet[if1 & (advicet.metadata_extraInfo.isin(keyword.search_keyword))]
 
 advicet[if1].metadata_extraInfo.value_counts()[:100]
 advicet[advicet.metadata_extraInfo == "통신매체이용음란죄"].metadata_contextAdditional.value_counts()
-
 advice
-
 
 for i in list(advicet[if1].metadata_extraInfo.value_counts()[:10].index) :
     print(advicet[advicet.metadata_extraInfo == i].groupby("slug")._id.count().sort_values(ascending = False)[:1])    
     get_gini(advicet[advicet.metadata_extraInfo == i].groupby("slug")._id.count().reset_index(), "_id")
 
+tmp1 = advice.adCategory_name.value_counts().reset_index().assign(tp = "유료상담수")
+tmp2 = keyword.groupby("type2").search_keyword.count().reset_index().assign(tp = "키워드수")
 
+tmp1.columns = ["분야", "카운트", "타입"]
+tmp2.columns = ["분야", "카운트", "타입"]
+
+(
+    ggplot(data = pd.concat([tmp1[tmp1.분야 != '기타'], tmp2], axis = 0)) +
+    geom_col(mapping = aes(x = "분야", y = "카운트", fill = "타입"), position = "dodge") +
+    theme_bw() +
+    theme(figure_size = (10, 7), text = element_text(angle = 90, fontproperties = font), axis_title=element_blank())
+)
+
+
+pd.merge(tmp1[tmp1.분야 != '기타'], tmp2, on = "분야").corr()
