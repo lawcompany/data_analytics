@@ -193,7 +193,7 @@ with DAG(
         	on date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day) = d.full_date
         	group by 1,2,3
         ) b
-        group by 1,2,3,4
+        group by 1,2,3,4,5,6
         union all
         select date('{{ds}}','Asia/Seoul') as batch_date
              , x.b_week
@@ -209,7 +209,7 @@ with DAG(
         and FORMAT_TIMESTAMP('%Y%m%d', createdAT, 'Asia/Seoul') = x.b_date
         inner join `raw.advice` b
         on a.advice = b._id
-        group by 1,2,3,4
+        group by 1,2,3,4,5,6
         union all
         select date('{{ds}}','Asia/Seoul') as batch_date
              , x.b_week
@@ -223,7 +223,7 @@ with DAG(
         on x.full_date between date_sub(date('{{ds}}','Asia/Seoul'),interval 7 day) and date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
         and FORMAT_TIMESTAMP('%Y%m%d', startedAT, 'Asia/Seoul') = x.b_date
         and a.type = 'profile'
-        group by 1,2,3,4
+        group by 1,2,3,4,5,6
         """
     )
 
