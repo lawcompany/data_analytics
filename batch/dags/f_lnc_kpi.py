@@ -30,7 +30,7 @@ with DAG(
 
     summary_kpi = BigQueryExecuteQueryOperator(
         task_id = 'summary_kpi',
-        destination_dataset_table = 'lawtalk-bigquery.for_shareholder.f_lnc_kpi${{ yesterday_ds_nodash }}',
+        destination_dataset_table = 'lawtalk-bigquery.for_shareholder.f_lnc_kpi${{ tomorrow_ds_nodash }}',
         use_legacy_sql = False,
         write_disposition = 'WRITE_TRUNCATE',
         sql = """
