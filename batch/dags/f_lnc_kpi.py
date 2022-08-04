@@ -116,7 +116,7 @@ with DAG(
                  , status
               from
               (
-                  select regexp_extract_all(orders, "ObjectId\\('(.*?)'") as paid_lawyer_orders
+                  select regexp_extract_all(orders, "ObjectId\\\\('(.*?)'") as paid_lawyer_orders
         	         , coupon
         	         , status
         	      from `raw.adpayments`
