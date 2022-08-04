@@ -241,11 +241,6 @@ WHERE 1 = 1
   -- AND ('2022-07-01' NOT BETWEEN pauseHistory_startAt_date AND pauseHistory_endAt_date	OR pauseHistory_startAt_date IS NULL)
 )
 SELECT 
-  slug
-  , lawyers_id
-  , STRING_AGG(ad_tf ORDER BY ad_tf LIMIT 1) AS ad_tf
-  , SUM(ad_cnt) AS ad_cnt
+  *
 FROM tmp_table
-GROUP BY 1, 2
-ORDER BY 3 DESC
 ;
