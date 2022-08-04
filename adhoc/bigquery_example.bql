@@ -1,0 +1,131 @@
+/*
+빅쿼리 기본 함수들을 제공해주는 공식 문서입니다.
+https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions
+*/
+
+
+/*
+1. 
+빅쿼리에서 FROM {table} 은
+`lawtalk-bigquery.raw.advicetransactions`
+와 같이 ` ` 안에 project.dataset.tablename 으로 하시면 됩니다.
+*/
+
+-- users 테이블 조회
+SELECT
+  *
+FROM `lawtalk-bigquery.raw.users`
+;
+
+/*
+2. 
+빅쿼리는 Array, JSON 등 다양한 데이터 포맷을 지원하지만 
+MongoDB에서 가져오다보니 JSON으로 파싱이 되지 않아 정규표현식을 사용해야될 때가 있습니다.
+안에서 뽑고싶은 Object가 하나일 경우에는 [REGEXP_EXTRACT]를 사용하고 
+2개 이상일 경우에는 [REGEXP_EXTRACT_ALL]를 사용하면 됩니다.
+*/
+SELECT
+  _id as adorders_id, 
+  item,
+  categories,
+  regexp_extract(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as adCategoryId
+FROM `lawtalk-bigquery.raw.adorders`
+WHERE categories IS NOT NULL AND categories != '[]'
+;
+
+
+SELECT 
+  _id as adpayments_id
+  ,REGEXP_EXTRACT_ALL(orders, r"ObjectId\('(.*?)'\)") AS adorders_id_list
+FROM `lawtalk-bigquery.raw.adpayments`
+WHERE _id in ('5e9813ea52d0b4027f147953', '5ae7e7b2003c20c526407030')
+;
+
+select
+  _id as adorders_id
+  , lawyer as lawyers_id
+  , status as adorders_status
+  , term
+  ,regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as adorders_startAt
+  ,regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as adorders_endAt
+from `lawtalk-bigquery.raw.adorders`
+;
+
+
+/*
+3. 
+빅쿼리는 Array, JSON 등 다양한 데이터 포맷을 지원하기 때문에
+[REGEXP_EXTRACT_ALL] 을 사용한 경우에 Array로 반환이 되고 이것은 UNNEST로 다시 풀어주면 됩니다.
+관련 자료 : https://zzsza.github.io/gcp/2020/04/12/bigquery-unnest-array-struct/
+*/
+SELECT 
+  _id as adpayments_id
+  , orders_id
+FROM `lawtalk-bigquery.raw.adpayments`, unnest(REGEXP_EXTRACT_ALL(orders, r"ObjectId\('(.*?)'\)")) as orders_id
+WHERE _id in ('5e9813ea52d0b4027f147953', '5ae7e7b2003c20c526407030')
+;
+
+
+/*
+4. 
+MongoDB에서 가져오더라도 완전히 JSON 형식을 따르고 있다면
+[JSON_EXTRACT] 함수를 통하여 바꿀 JSON 형식으로 바꿀 수 있습니다. 다만 JSON형식에 맞춰 '-> " 바꿔주어야할 때가 있습니다.
+*/
+SELECT 
+  _id
+  , times
+  , PARSE_JSON(REGEXP_REPLACE(times, '\'', '"'))
+FROM `lawtalk-bigquery.raw.adviceschedules`
+;
+
+SELECT 
+  _id
+  , times
+  , PARSE_JSON(REGEXP_REPLACE(times, '\'', '"')) -- times를 JSON으로 파싱
+  , PARSE_JSON(REGEXP_REPLACE(times, '\'', '"')).phone -- times의 phone의 값을 불러오기
+  , PARSE_JSON(REGEXP_REPLACE(times, '\'', '"')).phone[0] AS times_phone_first_value -- times.phone의 첫번째 값 불러오기
+FROM `lawtalk-bigquery.raw.adviceschedules`
+;
+
+
+/*
+5.
+TIMESTAMP나 DATE, DATETIME 이 스트링으로 되어있을 때는 [parse_timestamp], [parse_date], [parse_datetime] 등으로 파싱을 해준뒤
+사용하고자 하는 시간 대에 따라 서울 시간대로 바꿔준다. (UTC 기준 9시간 차이)
+참고 자료 : https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions
+*/
+
+SELECT
+  _id as adorders_id
+  ,lawyer as lawyers_id
+  ,status as adorders_status
+  ,date(DATETIME(createdAt,'Asia/Seoul')) as adorders_createdAt_date
+  ,regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as adorders_startAt
+  ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')  as adorders_startAt_timestamp
+  ,regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as adorders_endAt
+  ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as adorders_endAt_timestamp
+from `lawtalk-bigquery.raw.adorders`
+;
+
+
+
+/*
+6.
+ga 데이터처럼 큰 데이터들은 
+`lawtalk-bigquery.analytics_265523655.events_20220803`
+위와 같이 끝 부분에 날짜를 구분하여 테이블을 생성하게 되는데,
+[_TABLE_SUFFIX] 를 사용하여 
+*/
+
+SELECT 
+  * 
+FROM `lawtalk-bigquery.analytics_265523655.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20220801' AND '20220802'
+;
+
+
+/*
+추후 예제 샘플들을 올리도록 하겠습니다.
+*/
+
+
