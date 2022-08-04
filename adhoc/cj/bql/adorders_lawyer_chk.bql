@@ -1,3 +1,18 @@
+/*
+변호사 별 광고 현황
+slug - 변호사 slug
+lawyers_id - lawyers ObjectID
+item_name - 광고 상품
+adorders_start_date - 광고 시작일
+adorders_end_date - 광고 종료일
+pauseHistory_startAt_date - 광고 일시정지 시작일
+pauseHistory_endAt_date - 광고 일시정지 종료일
+adorders_status - adorders status = apply 와 adpayments status = paid 일때 광고 중
+adpayments_status - 위와 동일
+ad_tf - 광고주/비광고주 구분
+ad_cnt - 변호사별 광고 카운트를 위한 
+*/
+
 WITH A AS (
       SELECT
       _id as adorders_id
