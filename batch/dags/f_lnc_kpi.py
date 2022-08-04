@@ -35,7 +35,7 @@ with DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql = """
         with all_lawyer as
-        --변호사 명단
+        ##변호사 명단
         (
             select *
             FROM
@@ -65,13 +65,13 @@ with DAG(
             ) a
         )
         , open_lawyer As (
-        -- 공개변호사 명단
+        ## 공개변호사 명단
         	select *
         	from all_lawyer a
         	where a.is_act = 1 and a.is_hold = 0 and a.is_full = 1
         )
         ,adorders_pausehistory_tmp AS (
-        -- adorders에 휴면 기간만 발췌해오는 중간테이블(일단 array로 만듦)
+        ## adorders에 휴면 기간만 발췌해오는 중간테이블(일단 array로 만듦)
             select
               _id as adorders_id
               ,pauseHistory
@@ -82,7 +82,7 @@ with DAG(
               and REGEXP_CONTAINS(pauseHistory, 'ObjectId')
         )
         , adorders_pausehistory AS (
-        -- adorders_pausehistory_tmp를 통해 row형태로 가공
+        ## adorders_pausehistory_tmp를 통해 row형태로 가공
             select
               adorders_id
               ,DATE(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_startAt), 'Asia/Seoul')) as pauseHistory_startAt_date
@@ -93,7 +93,7 @@ with DAG(
             where pos1=pos2
         )
         , adoders_arrange AS
-        -- adorders 가공(start_date,end_date 파싱 및 휴면기간 매핑)
+        ## adorders 가공(start_date,end_date 파싱 및 휴면기간 매핑)
         (
             select a.lawyer
                  , a._id
@@ -109,7 +109,7 @@ with DAG(
             on a._id = b.adorders_id
         )
         , adpayments_arrange AS
-        -- adpayments 가공(order_id파싱)
+        ## adpayments 가공(order_id파싱)
         (
             select distinct b as paid_lawyer_orders
                  , coupon
@@ -124,7 +124,7 @@ with DAG(
               unnest(paid_lawyer_orders) as b
         )
         , betaadorders_arrange AS
-        -- 플러스광고 테이블인 betaadorders 가공
+        ## 플러스광고 테이블인 betaadorders 가공
         (
             select lawyer
                  , DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as start_date
@@ -133,7 +133,7 @@ with DAG(
             where status = 'apply'
         )
         , freecoupons AS
-        -- 분야 광고 1개 무료 쿠폰 id만 발췌
+        ## 분야 광고 1개 무료 쿠폰 id만 발췌
         (
             select distinct _id, campaign
             from `raw.adcoupons`
@@ -141,7 +141,7 @@ with DAG(
         )
         , ad_lawyer AS
         (
-        -- 광고주 변호사
+        ## 광고주 변호사
             select distinct a.lawyer
             from
             (
