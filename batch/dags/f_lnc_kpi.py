@@ -34,7 +34,7 @@ with DAG(
         use_legacy_sql = False,
         write_disposition = 'WRITE_TRUNCATE',
         sql = """
-        select date(current_datetime('Asia/Seoul')) as batch_date
+        select {{ds}} as batch_date
              , x.b_week
         	 , x.week_start_date
         	 , x.week_end_date
