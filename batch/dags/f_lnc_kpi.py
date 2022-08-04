@@ -16,9 +16,9 @@ with DAG(
     schedule_interval = '0 10 * * *',
     tags=["jungarui","KPI"],
     default_args={
-        "owner": "jungarui",
-        "retries": 3,  # Task가 실패한 경우, 3번 재시도
-        "retry_delay": timedelta(minutes=3),  # 재시도하는 시간 간격은 3분
+        "owner": "jungarui"#,
+        #"retries": 3,  # Task가 실패한 경우, 3번 재시도
+        #"retry_delay": timedelta(minutes=3),  # 재시도하는 시간 간격은 3분
     }
 ) as dag:
 
@@ -34,7 +34,7 @@ with DAG(
         use_legacy_sql = False,
         write_disposition = 'WRITE_TRUNCATE',
         sql = """
-        select date({{ds}},'Asia/Seoul') as batch_date
+        select date('{{ds}}','Asia/Seoul') as batch_date
              , x.b_week
         	 , x.week_start_date
         	 , x.week_end_date
