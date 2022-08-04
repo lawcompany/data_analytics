@@ -1,0 +1,10 @@
+
+SELECT 
+  _id
+  , slug
+  , name
+FROM `lawtalk-bigquery.raw.lawyers` AS B
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{4}-[가-힣]+')
+
+

@@ -1,0 +1,12 @@
+SELECT 
+	event_date	
+	, event_timestamp
+	, user_pseudo_id
+	, (SELECT param.value.string_value FROM UNNEST(event_params) as param WHERE param.key = 'keyword') as keyword
+	, (SELECT param.value.string_value FROM UNNEST(event_params) as param WHERE param.key = 'ga_session_id') as ga_session_id 
+	, (SELECT param.value.string_value FROM UNNEST(event_params) as param WHERE param.key = 'page_title') as page_title 
+  , (SELECT param.value.string_value FROM UNNEST(event_params) as param WHERE param.key = 'page_location') as page_location 
+FROM `lawtalk-bigquery.analytics_265523655.events_*`
+WHERE 1 = 1 
+	AND _TABLE_SUFFIX BETWEEN '20220701' AND '20220715'
+	AND event_name = 'tag.상단검색창직접입력'
