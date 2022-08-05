@@ -58,6 +58,7 @@ with DAG(
                 from `raw.users`
                 where lawyer is not null
                 and role = 'lawyer'
+                and date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ds}}'
                 ) a
                 inner join `raw.lawyers` b
                 on a.lawyer = b._id
@@ -78,7 +79,7 @@ with DAG(
               ,regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_startAt
               ,regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_endAt
             from `lawtalk-bigquery.raw.adorders`
-            where date(DATETIME(createdAt, 'Asia/Seoul')) <= '2022-12-31'
+            where date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ds}}'
               and REGEXP_CONTAINS(pauseHistory, 'ObjectId')
         )
         , adorders_pausehistory AS (
@@ -167,15 +168,15 @@ with DAG(
         , conversion AS
         (
            select num
-           from unnest(generate_array(1,2)) as num
+           from unnest(generate_array(1,3)) as num
         )
         select date('{{ds}}','Asia/Seoul') as batch_date
              , b.b_week
         	 , b.week_start_date
         	 , b.week_end_date
-        	 , '로톡' as service
-             , case when a.num = 1 then '로톡 변호사 회원 수' else '로톡 변호사 광고주 수' end as cat
-             , sum(case when a.num = 1 then summit_lawyer else ads_lawyer end) as f_value
+        	 , '1. 로톡' as service
+             , case when a.num = 1 then '1) 로톡 변호사 회원 수' else '2) 로톡 변호사 광고주 수' end as cat
+             , sum(case when a.num = 1 then summit_lawyer+withdraw_lawyer_cnt else ads_lawyer end) as f_value
         from conversion a
         cross join
         (
@@ -184,6 +185,7 @@ with DAG(
         	     , d.week_end_date
         	     , count(distinct a.lawyer) as summit_lawyer
         	     , count(distinct c.lawyer) as ads_lawyer
+                 , sum(e.withdraw_lawyer_cnt) as withdraw_lawyer_cnt
         	from all_lawyer a
         	left join open_lawyer b
         	on a.lawyer = b.lawyer
@@ -191,16 +193,20 @@ with DAG(
         	on b.lawyer = c.lawyer
         	inner join `common.d_calendar` d
         	on date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day) = d.full_date
+            left join `for_shareholder.f_lt_lawyer_withdraw` e
+	        on d.full_date = e.b_date
         	group by 1,2,3
         ) b
+        where a.num <= 2
         group by 1,2,3,4,5,6
         union all
+        ## 3. 유료상담예약건수
         select date('{{ds}}','Asia/Seoul') as batch_date
              , x.b_week
         	 , x.week_start_date
         	 , x.week_end_date
-        	 , '로톡' as service
-             , '유료 상담예약 건수' as cat
+        	 , '1. 로톡' as service
+             , '3) 유료 상담예약 건수' as cat
              , count(distinct a._id) as f_value
         from `common.d_calendar` x
         inner join `raw.advicetransactions` a
@@ -211,18 +217,78 @@ with DAG(
         on a.advice = b._id
         group by 1,2,3,4,5,6
         union all
+        ## 4. 050 콜수
         select date('{{ds}}','Asia/Seoul') as batch_date
              , x.b_week
         	 , x.week_start_date
         	 , x.week_end_date
-        	 , '로톡' as service
-             , '050 전화 상담 연결 수' as cat
+        	 , '1. 로톡' as service
+             , '4) 050 전화 상담 연결 수' as cat
              , count(distinct a._id) as f_value
         from `common.d_calendar` x
         inner join `raw.callevents` a
         on x.full_date between date_sub(date('{{ds}}','Asia/Seoul'),interval 7 day) and date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
         and FORMAT_TIMESTAMP('%Y%m%d', startedAT, 'Asia/Seoul') = x.b_date
         and a.type = 'profile'
+        group by 1,2,3,4,5,6
+        union all
+        ## 5. 로톡비즈 변호사 회원 수
+        select date('{{ds}}','Asia/Seoul') as batch_date
+             , x.b_week
+        	 , x.week_start_date
+        	 , x.week_end_date
+        	 , '4. 로톡비즈' as service
+             , '1) 변호사 회원 수' as cat
+             , count(distinct a.user_name) as f_value
+        from `common.d_calendar` x
+        inner join `for_shareholder.s_biz_lawyer` a
+        on x.full_date = date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
+        and x.full_date = a.b_date
+        and FORMAT_TIMESTAMP('%Y%m%d', createdAt, 'Asia/Seoul') <= x.b_date
+        group by 1,2,3,4,5,6
+        union all
+        ## 빅케이스 회원 수
+        select date('{{ds}}','Asia/Seoul') as batch_date
+             , b.b_week
+        	 , b.week_start_date
+        	 , b.week_end_date
+        	 , '2. 빅케이스' as service
+             , case when a.num = 1 then '1) 변호사 회원 수' when a.num = 2 then '2) 법률전문직 회원 수' else '3) 기타 일반 회원 수' end as cat
+             , sum(case when a.num = 1 then lawyer when a.num = 2 then legal_profession else etc_lawyer end) as f_value
+        from conversion a
+        cross join
+        (
+        	select date('{{ds}}','Asia/Seoul') as batch_date
+        	     , x.b_week
+        		 , x.week_start_date
+        		 , x.week_end_date
+        	     , sum(lawyer) as lawyer
+        	     , sum(legal_profession) as legal_profession
+        	     , sum(etc_lawyer) as etc_lawyer
+        	from `common.d_calendar` x
+        	inner join
+        	(
+        		select date('{{ds}}','Asia/Seoul') as batch_date
+        		     , sum(lawyer) as lawyer
+        		     , sum(legal_profession) as legal_profession
+        		     , group_all_user_cnt-sum(lawyer)-sum(legal_profession) as etc_lawyer
+        		from
+        		(
+        			select distinct b_date
+        			     , all_user_cnt
+        			     , lawyer
+        			     , legal_profession
+        			     , last_value(all_user_cnt) over(order by b_date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as group_all_user_cnt
+        			 from `for_shareholder.f_bc_lawyer`
+        		    where b_date < date('{{ds}}','Asia/Seoul')
+        		) a
+        		group by date('{{ds}}','Asia/Seoul')
+        		       , group_all_user_cnt
+        	) a
+        	on x.full_date = date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
+        	group by 1,2,3,4
+        ) b
+        where a.num <= 3
         group by 1,2,3,4,5,6
         """
     )
