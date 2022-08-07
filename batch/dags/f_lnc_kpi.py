@@ -10,7 +10,7 @@ KST = pendulum.timezone("Asia/Seoul")
 
 
 with DAG(
-    dag_id="f_lnc_kpi",
+    dag_id="f_lnc_kpi_w",
     description ="lawncompany kpi for shareholders",
     start_date = datetime(2022, 8, 3, tzinfo = KST),
     schedule_interval = '0 9 * * 1',
@@ -30,7 +30,7 @@ with DAG(
 
     summary_kpi = BigQueryExecuteQueryOperator(
         task_id = 'summary_kpi',
-        destination_dataset_table = 'lawtalk-bigquery.for_shareholder.f_lnc_kpi${{ ds_nodash }}',
+        destination_dataset_table = 'lawtalk-bigquery.for_shareholder.f_lnc_kpi_w${{ ds_nodash }}',
         use_legacy_sql = False,
         write_disposition = 'WRITE_TRUNCATE',
         sql = """
