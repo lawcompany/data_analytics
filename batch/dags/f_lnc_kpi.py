@@ -305,6 +305,20 @@ with DAG(
         on x.full_date = date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)-- 어제날짜
         and x.full_date = a.b_date
         group by 1,2,3,4,5,6,7
+        union all
+        ## 8. 온라인상담 답변글 수
+        select date('{{ds}}','Asia/Seoul') as batch_date
+             , x.b_week
+             , x.week_start_date
+             , x.week_end_date
+             , '1. 로톡' as service
+             , '5) 온라인 상담 답변 수' as cat
+             , count(distinct a._id) as f_value
+        from `common.d_calendar` x
+        inner join `raw.answers` a
+        and x.full_date between date_sub(date('{{ds}}','Asia/Seoul'),interval 7 day) and date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
+        and FORMAT_TIMESTAMP('%Y%m%d', createdAT, 'Asia/Seoul') = x.b_date
+        group by 1,2,3,4,5,6
         """
     )
 
