@@ -316,7 +316,7 @@ with DAG(
              , count(distinct a._id) as f_value
         from `common.d_calendar` x
         inner join `raw.answers` a
-        and x.full_date between date_sub(date('{{ds}}','Asia/Seoul'),interval 7 day) and date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
+        on x.full_date between date_sub(date('{{ds}}','Asia/Seoul'),interval 7 day) and date_sub(date('{{ds}}','Asia/Seoul'),interval 1 day)
         and FORMAT_TIMESTAMP('%Y%m%d', createdAT, 'Asia/Seoul') = x.b_date
         group by 1,2,3,4,5,6
         """
