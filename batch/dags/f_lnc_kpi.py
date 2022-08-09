@@ -12,8 +12,8 @@ KST = pendulum.timezone("Asia/Seoul")
 with DAG(
     dag_id="f_lnc_kpi_w",
     description ="lawncompany kpi for shareholders",
-    start_date = datetime(2022, 8, 3, tzinfo = KST),
-    schedule_interval = '0 9 * * 1', #UTC기준??
+    start_date = datetime(2022, 8, 1, tzinfo = KST),
+    schedule_interval = '0 9 * * 1', #UTC기준?? KST기준인듯
     tags=["jungarui","KPI"],
     default_args={
         "owner": "jungarui"#,
