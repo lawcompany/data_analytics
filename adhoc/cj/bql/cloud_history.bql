@@ -1,0 +1,62 @@
+
+WITH t1 AS (
+SELECT 
+  _id
+  , lawyer
+  , createdAt
+  , status
+FROM `lawtalk-bigquery.raw.advicetransactions` 
+WHERE 1 = 1
+  AND DATETIME(createdAt) >= DATETIME(TIMESTAMP '2022-05-01')
+), t2 AS (
+SELECT 
+  _id
+  , createdAt
+  , lawyer
+  , visibleCloudType
+FROM `lawtalk-bigquery.raw.visiblecloudtypehistories`  
+)
+, t3 AS (
+SELECT
+  t1.*
+  , t2.createdAt AS updateCloudAt
+  , t2.visibleCloudType
+  , row_number() OVER(PARTITION BY t1._id ORDER BY t2.createdAt DESC) AS rn
+FROM t1
+LEFT JOIN t2
+ON (t1.createdAt >= t2.createdAt) AND (t1.lawyer = t2.lawyer)
+WHERE 1 = 1
+
+)
+, review_cnts AS (
+-- 변호사별 노출되고 있는 후기 개수
+SELECT 
+  lawyer
+  -- , review
+  -- , REGEXP_EXTRACT(review, r'\'rate\': (\d)')
+  -- , REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)')
+  , COUNT(review) AS review_cnt
+FROM `lawtalk-bigquery.raw.advice` 
+WHERE 1 = 1
+    AND status = 'complete'
+    AND REGEXP_EXTRACT(review, r'\'rate\': (\d)') IS NOT NULL
+    AND (REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') IS NULL OR REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') != 'false')
+GROUP BY 1
+)
+, lawyers AS (
+-- lawyer slug가 있는 변호사만 뽑는 쿼리
+SELECT 
+  _id AS lawyer
+  , slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{4}-[가-힣]+')
+)
+SELECT 
+  t3.*
+  , review_cnts.review_cnt
+  , lawyers.slug
+FROM t3
+LEFT JOIN review_cnts USING (lawyer)
+LEFT JOIN lawyers USING (lawyer)
+WHERE t3.rn = 1

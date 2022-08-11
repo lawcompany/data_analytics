@@ -1,0 +1,44 @@
+WITH review_cnt AS (
+-- 변호사별 노출되고 있는 후기 개수
+SELECT 
+  lawyer
+  -- , review
+  -- , REGEXP_EXTRACT(review, r'\'rate\': (\d)')
+  -- , REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)')
+  , COUNT(review) AS review_cnt
+FROM `lawtalk-bigquery.raw.advice` 
+WHERE 1 = 1
+    AND status = 'complete'
+    AND REGEXP_EXTRACT(review, r'\'rate\': (\d)') IS NOT NULL
+    AND (REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') IS NULL OR REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') != 'false')
+GROUP BY 1
+ORDER BY 2 DESC
+)
+, advice_transaction AS (
+-- 변호사별 완료된 유료 상담 카운트
+SELECT 
+  lawyer
+  , createdAt
+  , status
+FROM `lawtalk-bigquery.raw.advicetransactions` 
+WHERE 1 = 1
+  AND DATE(DATETIME(createdAt, 'Asia/Seoul')) >= '2022-06-01'
+)
+, lawyers AS (
+-- lawyer slug가 있는 변호사만 뽑는 쿼리
+SELECT 
+  _id AS lawyer
+  , slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{4}-[가-힣]+')
+)
+SELECT 
+  * 
+FROM advice_transaction
+LEFT JOIN lawyers
+USING (lawyer)
+LEFT JOIN review_cnt
+USING (lawyer)
+;
+
