@@ -39,10 +39,6 @@ pd.set_option('max_colwidth', -1)
 pd.options.display.float_format = '{:.2f}'.format
 
 
-def read_bql(file_name) :
-    with open(file_name, "r") as f :
-        bql = f.read()
-    return bql
 
 
 def bigquery_to_pandas(query_string) :
@@ -88,15 +84,50 @@ advice_cloud = advice_cloud[advice_cloud.slug.notna()]
 advice_cloud.review_cnt = advice_cloud.review_cnt.fillna(0)
 advice_cloud.visibleCloudType = advice_cloud.visibleCloudType.fillna("normal")
 
-before = advice_cloud[advice_cloud.createdAt.dt.date.isin(pd.date_range(datetime.datetime(2022, 4, 1), datetime.datetime(2022, 5, 1)))]
+before = advice_cloud[advice_cloud.createdAt.dt.date.isin(pd.date_range(datetime.datetime(2022, 4, 1), datetime.datetime(2022, 5, 1)).date)]
 
-after = advice_cloud[advice_cloud.createdAt.dt.date.isin(pd.date_range(datetime.datetime(2022, 7, 3), datetime.datetime(2022, 8, 3)))]
-
-
+after = advice_cloud[advice_cloud.createdAt.dt.date.isin(pd.date_range(datetime.datetime(2022, 7, 3), datetime.datetime(2022, 8, 3)).date)]
 
 after.groupby(["visibleCloudType", "review_cnt"]).slug.count().reset_index().corr()
 
-before.groupby(["review_cnt"]).slug.count().reset_index().corr()
+before.groupby(["slug", "review_cnt"])._id.count().reset_index().corr()
+after.groupby(["slug", "review_cnt"])._id.count().reset_index().corr()
+before[before.review_cnt >= 50].groupby(["slug", "review_cnt"])._id.count().reset_index().corr()
+
+
+def corr_plot(df) :
+    tmp = (
+        ggplot() +
+        geom_point(data = df.groupby(["slug", "review_cnt"])._id.count().reset_index(), mapping = aes(x = "review_cnt", y = "_id")) +
+        theme_bw()
+    )
+    
+    print(tmp)
+    
+    return
+
+corr_plot(before)
+corr_plot(after)
+
+corr_plot(after)
+
+
+after[after.slug.isin(after.groupby(["visibleCloudType", "slug", "review_cnt"])._id.count().reset_index().slug.value_counts().loc[lambda x : x > 1].index)]
+
+after[after.slug.isin(after.groupby(["visibleCloudType", "slug", "review_cnt"])._id.count().reset_index().slug.value_counts().loc[lambda x : x > 1].index)].sort_values(by = ["slug", "updateCloudAt"])
+
+(
+        ggplot() +
+        geom_point(data = after.groupby(["visibleCloudType", "slug", "review_cnt"])._id.count().reset_index().rename(columns = {"_id" : "advice_cnt"}), mapping = aes(x = "review_cnt", y = "advice_cnt", color = "visibleCloudType"), alpha = 0.5) +
+        theme_bw()
+)
+
+corr_plot(after[after.visibleCloudType == "normal"])
+corr_plot(after[after.visibleCloudType == "review-research"])
+corr_plot(after[after.visibleCloudType == "self-answer"])
+
+after.groupby(["visibleCloudType", "review_cnt"]).slug.count().reset_index().corr()
+
 after[after.visibleCloudType == "normal"].groupby(["visibleCloudType", "review_cnt"]).slug.count().reset_index().corr()
 after[after.visibleCloudType == "review-research"].groupby(["visibleCloudType", "review_cnt"]).slug.count().reset_index().corr()
 after[after.visibleCloudType == "self-answer"].groupby(["visibleCloudType", "review_cnt"]).slug.count().reset_index().corr()
@@ -122,3 +153,6 @@ after.groupby(["visibleCloudType", "review_cnt"]).lawyer.count().reset_index()
     ggplot() +
     geom_histogram(data = after, mapping = aes(x = "review_cnt", fill = "visibleCloudType"), alpha = 0.3, position = "identity")
 )
+
+
+

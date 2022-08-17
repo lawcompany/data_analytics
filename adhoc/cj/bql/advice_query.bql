@@ -1,0 +1,28 @@
+WITH advice AS (
+SELECT
+  _id
+  , lawyer AS lawyer_id
+  , adCategory
+  , createdAt
+  , status
+FROM `lawtalk-bigquery.raw.advice`
+WHERE 1 = 1 
+  -- AND status = 'complete'
+  -- AND createdAt between '2022-07-01' AND '2022-07-15'
+)
+, adCategory AS (
+SELECT
+  _id AS adCategory
+  , name AS adCategory_name
+FROM `lawtalk-bigquery.raw.adcategories`
+)
+SELECT 
+  _id
+  , lawyer_id
+  , adCategory
+  , createdAt
+  , status
+  , adCategory_name
+FROM advice A
+LEFT JOIN adCategory B
+USING (adCategory)
