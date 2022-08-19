@@ -78,15 +78,61 @@ def gs_append(url, credential_path = '../99_credential/lawtalk-bigquery-2bfd97cf
 
 theme(figure_size = (10, 7), text = element_text(angle = 90, fontproperties = font), axis_title=element_blank())
 
+read_bql("../bql/cloud_history.bql")
+
+
+review_cnt_query = '''
+WITH review_cnts AS (
+-- 변호사별 노출되고 있는 후기 개수
+SELECT 
+  lawyer
+  -- , review
+  -- , REGEXP_EXTRACT(review, r'\'rate\': (\d)')
+  -- , REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)')
+  , COUNT(review) AS review_cnt
+FROM `lawtalk-bigquery.raw.advice` 
+WHERE 1 = 1
+    AND status = 'complete'
+    AND REGEXP_EXTRACT(review, r'\'rate\': (\d)') IS NOT NULL
+    AND (REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') IS NULL OR REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') != 'false')
+    AND DATE(DATETIME(createdAt, 'Asia/Seoul')) <= '{}'
+GROUP BY 1
+)
+, lawyers AS (
+-- lawyer slug가 있는 변호사만 뽑는 쿼리
+SELECT 
+  _id AS lawyer
+  , slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{{4}}-[가-힣]+')
+)
+SELECT 
+  lawyers.slug
+  , lawyers.lawyer
+  , review_cnts.review_cnt
+FROM lawyers
+LEFT JOIN review_cnts USING (lawyer)
+;
+'''
+
+
+before_review = bigquery_to_pandas(read_bql("../bql/review_cnt.bql").format("2022-04-01"))
+after_review = bigquery_to_pandas(read_bql("../bql/review_cnt.bql").format("2022-07-03"))
 
 advice_cloud = bigquery_to_pandas(read_bql("../bql/cloud_history.bql"))
 advice_cloud = advice_cloud[advice_cloud.slug.notna()]
-advice_cloud.review_cnt = advice_cloud.review_cnt.fillna(0)
 advice_cloud.visibleCloudType = advice_cloud.visibleCloudType.fillna("normal")
 
 before = advice_cloud[advice_cloud.createdAt.dt.date.isin(pd.date_range(datetime.datetime(2022, 4, 1), datetime.datetime(2022, 5, 1)).date)]
 
 after = advice_cloud[advice_cloud.createdAt.dt.date >= datetime.date(2022, 7, 3)]
+
+before = pd.merge(before, before_review, on = ["lawyer", "slug"], how = "left")
+after = pd.merge(after, after_review, on = ["lawyer", "slug"], how = "left")
+
+before.review_cnt = before.review_cnt.fillna(0)
+after.review_cnt = after.review_cnt.fillna(0)
 
 gafter = after.groupby(["slug", "visibleCloudType"]).agg(days = ("createdAt", lambda x : max(x) - min(x)), min_date = ("createdAt", min)).assign(days = lambda x : x.days.dt.days).reset_index()
 
