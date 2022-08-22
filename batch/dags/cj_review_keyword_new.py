@@ -58,8 +58,12 @@ import os
 import sys
 import warnings
 
-os.system("sudo python3 -m pip install gspread")
-os.system("sudo python3 -m pip install konlpy")
+'''
+dag 별로 파이썬 가상환경이 아니라, composer 전체 환경에 파이썬이 설치되어있다보니
+위에 방법처럼 설치하는 방법도 있지만. 왜인지 pip install이 되지 않아서 아래처럼 실행할 때 설치를 해주고 있습니다.
+'''
+os.system("sudo python3 -m pip install -U gspread")
+os.system("sudo python3 -m pip install -U konlpy")
 # os.system("sudo python3 -m pip install -U pip")
 
 import argparse
@@ -103,13 +107,21 @@ KST = pendulum.timezone("Asia/Seoul")
 
 
 def chk_executedate(execution_date : datetime.datetime) :
-    
+    '''
+    실행 날짜를 확인하는 함수
+    execution_date : dag의 실행일자를 인자로 받음 -- datetime.datetime
+    Return : None
+    '''
     print(execution_date.strftime("%Y-%m-%d %H:%M"))
     
     return
 
 
 def print_files_in_dir(root_dir : str, prefix : str) :
+    '''
+    파일 tree를 확인하는 함수(처음에 composer 디렉토리 구조를 이해하지 못해서 생성/필요 없음.) 
+    Return : None
+    '''
     files = os.listdir(root_dir)
     
     if ".ipynb_checkpoints" in files : files.remove(".ipynb_checkpoints")
@@ -124,18 +136,11 @@ def print_files_in_dir(root_dir : str, prefix : str) :
     return
 
 
-def upload_gcs(bucket_name, source_file_name, destination_blob_name) :
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    
-    blob = bucket.blob(destination_blob_name)
-    blob.upload_from_filename(source_file_name)
-    
-    print(f"upload {bucket_name} {source_file_name} to {destination_blob_name}")
-    
-    return
-
 def chk_gspread() :
+    '''
+    google spread sheet에 권한 및 수정 테스트를 위한 함수(사용 안함)
+    Return : None
+    '''
     
     url = "https://docs.google.com/spreadsheets/d/1YPE56LBIodmUJstnEWVlGjVe-oj5x3nJgFkpZ1KjxhI/edit?usp=sharing"
     credential_path = 'gcs/data/99_credential/lawtalk-bigquery-2bfd97cf0729.json'
@@ -159,18 +164,13 @@ def chk_gspread() :
     return r
 
 
-def tokenize_okt(text, all_body = False):
-    okt_pos = Okt().pos(text, norm=True, stem=True)
-    okt_filtering = [x for x,y in okt_pos if y in ["Verb", 'Adverb', "Adjective", "Noun"]]
-    if all_body == True :
-        word_and_pos = pd.DataFrame(okt_pos, columns = ["word", "pos"]).drop_duplicates()
-        word_and_pos = word_and_pos[word_and_pos.pos.isin(["Verb", 'Adverb', "Adjective", "Noun"])]
-        return(okt_filtering, word_and_pos)
-    
-    return(okt_filtering)
-
 
 def bigquery_to_pandas(query_string) :
+    '''
+    bigquery에서 판다스로 옮기는 함수
+    query_string : bigquery query -- str
+    Return : bigquery 결과 데이터프레임 -- pd.DataFrame
+    '''
 
     credential_path = 'gcs/data/99_credential/lawtalk-bigquery-2bfd97cf0729.json'
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credential_path
@@ -190,16 +190,15 @@ def bigquery_to_pandas(query_string) :
     return b
 
 
-def chk_bigquery() :
-    sql = '''SELECT * FROM `lawtalk-bigquery.raw.questions` LIMIT 10'''
-    
-    print(bigquery_to_pandas(sql))
-    
-    return
-
-
 
 def gs_append(df, url = "https://docs.google.com/spreadsheets/d/1P_sFwDbiHL-yszUyxlcJ-DjFjUtFS3vR9S7zWCfPMyk/edit#gid=0", credential_path = 'gcs/data/99_credential/lawtalk-bigquery-2bfd97cf0729.json', scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']) : 
+    '''
+    google spreadsheet에 추가된 단어를 추가하는 함수
+    df : 업로드할 gcs bucket name -- pd.DataFrame
+    source_file_name : 올려야할 composer 내에서 생성한 파일 이름 -- str
+    destination_blob_name : 업로드할 Gcs bucket에 들어갈 파일 이름 -- str
+    Return : None
+    '''
     
     credentials = ServiceAccountCredentials.from_json_keyfile_name(credential_path, scope)
     
@@ -224,7 +223,10 @@ def gs_append(df, url = "https://docs.google.com/spreadsheets/d/1P_sFwDbiHL-yszU
 
 
 def read_dict() :
-    
+    '''
+    후기뷰 사전 읽어오는 함수
+    확인용 url = https://docs.google.com/spreadsheets/d/1P_sFwDbiHL-yszUyxlcJ-DjFjUtFS3vR9S7zWCfPMyk/edit#gid=0
+    '''
     url = "https://docs.google.com/spreadsheets/d/1P_sFwDbiHL-yszUyxlcJ-DjFjUtFS3vR9S7zWCfPMyk/edit#gid=0"
     credential_path = 'gcs/data/99_credential/lawtalk-bigquery-2bfd97cf0729.json'
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -243,22 +245,39 @@ def read_dict() :
     return df_
 
 
-def tokenize_okt(text, all_body = False) :
+def tokenize_okt(text, all_body = False):
+    '''
+    text를 받아 형태소 분석을 하는 함수
+    text : 형태소 분석을 할 문장 -- str
+    all_body : 형태소가 붙은 사전을 return 할 것인가에 대한 boolean -- boolean
+    Return : 형태소 분석 결과 및 사전
+    '''
     okt_pos = Okt().pos(text, norm=True, stem=True)
     okt_filtering = [x for x,y in okt_pos if y in ["Verb", 'Adverb', "Adjective", "Noun"]]
     if all_body == True :
         word_and_pos = pd.DataFrame(okt_pos, columns = ["word", "pos"]).drop_duplicates()
         word_and_pos = word_and_pos[word_and_pos.pos.isin(["Verb", 'Adverb', "Adjective", "Noun"])]
         return(okt_filtering, word_and_pos)
+    
     return(okt_filtering)
 
 
 def extract_n_gram(x, word, n = 5) :
+    '''
+    기준 단어(현재 '변호사', '설명', '상담')에 대해서 n-gram을 실시함.
+    n : n-gram에서 주변 몇개의 단어를 까져올 것인지 default = 5 -- int
+    '''
     return re.findall(pattern = "[^\s]*? " * n + f"[^\s]*{word}[^\s]*?" + " [^\s]*?" * (n + 1), string = x)
 
 
-
 def upload_gcs(bucket_name, source_file_name, destination_blob_name) :
+    '''
+    gcs buckect에 파일을 업로드하는 함수
+    bucket_name : 업로드할 gcs bucket name -- str
+    source_file_name : 올려야할 composer 내에서 생성한 파일 이름 -- str
+    destination_blob_name : 업로드할 Gcs bucket에 들어갈 파일 이름 -- str
+    Return : None
+    '''
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     
@@ -271,7 +290,10 @@ def upload_gcs(bucket_name, source_file_name, destination_blob_name) :
 
 
 def send_to_slack(text) :
-    
+    '''
+    slack bot에 진행 메세지 보내기
+    text : 메세지 내용 -- str
+    '''
     url = "https://hooks.slack.com/services/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"
     requests.post(url, headers={'Content-type': 'application/json'}, json = {"text" : text})
     
@@ -279,7 +301,10 @@ def send_to_slack(text) :
 
 
 def start_message(execution_date : datetime.datetime) :
-    
+    '''
+    시작 알람 메세지 슬랙으로 보내는 task
+    execute_date : dag 실행일자 -- datetime.datetime
+    '''
     execution_date = execution_date + datetime.timedelta(days = 16)
     print(f"execute date = {execution_date}")
     
@@ -289,7 +314,10 @@ def start_message(execution_date : datetime.datetime) :
 
 
 def make_dataset(execution_date : datetime.datetime) :
-    
+    '''
+    dag 실행일자 기준 후기가 50개 이상인 변호사들과 최근 50개의 후기 데이터를 추출
+    execution_date : dag 실행일자 -- datetime.datetime
+    '''
     execution_date = execution_date + datetime.timedelta(days = 16)
     print(f"execute date = {execution_date}")
     
@@ -299,7 +327,9 @@ def make_dataset(execution_date : datetime.datetime) :
     m = str(execution_date.month).zfill(2)
     d = str(execution_date.day).zfill(2)
 
+    # 기준단어는 아래의 3개의 단어
     standwords_list = ["상담", "변호사", "설명"]
+    # 사용하는 품사는 명사, 동사, 부사, 형용사
     standpos_list = ["Noun", "Verb", "Adverb", "Adjective"]
     
     sql = '''
@@ -371,6 +401,7 @@ def make_dataset(execution_date : datetime.datetime) :
     advice["review_body"] = advice["review_body"].astype(str).apply(lambda x: re.sub(r" {2,}|\\s{2,}", repl = " ", string = x))
     advice.review_body = advice.apply(lambda x : x.review_body.replace(x["name"], ""), axis = 1)
 
+    # task 별로 데이터를 전달하기 어렵기 때문에 gcs에 저장하여 연결
     os.makedirs("gcs/data/extract_data", exist_ok = True)
     advice.to_csv(f'gcs/data/extract_data/{y}{m}{d}.csv', index = False)
     
@@ -384,7 +415,9 @@ def make_dataset(execution_date : datetime.datetime) :
 
 
 def make_lawyer_data(execution_date : datetime.datetime) :
+    '''
     
+    '''
     execution_date = execution_date + datetime.timedelta(days = 16)
     print(f"execute date = {execution_date}")
     
@@ -499,7 +532,10 @@ def make_lawyer_data(execution_date : datetime.datetime) :
     return
 
 def import_gcs(execution_date : datetime.datetime) :
-    
+    '''
+    composer는 현재 Task 실행시마다 ip가 유동적으로 바뀌므로, cloud function(AWS lambda 와 비슷)을 사용해 for_review_update BUCKET에 올리면
+    trigger를 통해서 MongoDB API(이수연님 개발)에 request를 보내어 운영db에 적재
+    '''
     
     execution_date = execution_date + datetime.timedelta(days = 16)
     
@@ -525,9 +561,11 @@ def import_gcs(execution_date : datetime.datetime) :
 
 
 with DAG(
+
     dag_id="keyword_review_new",
     description ="keyword with laywer review",
     start_date = datetime.datetime(2022, 6, 28, tzinfo = KST),
+    # 매일 15일 혹은 말일에 돌도록 되어있음.
     schedule_interval = '0 0 15,L * *',
     # schedule_interval = '0 0 11 13,26 * ? *',
     tags=["cj_kim","keyword_review"],
@@ -580,6 +618,7 @@ with DAG(
     #                 python_callable=chk_gspread,
     #                 dag=dag)
     
+    # 위의 test task들은 사실 무의미하고 아래의 실제 테스크만 돌아가면 됨.
     start_message = PythonOperator(task_id='start_message',
                         provide_context=True,
                         python_callable=start_message,
@@ -610,7 +649,9 @@ with DAG(
                         dag=dag)
 
     
+    # 시작 -> 시작메세지 출력 -> 타겟 변호사 데이터셋 로드 -> n-gram을 통하여 데이터셋 구성 -> mongoDB에 넣을 수 있도록 cloud function과 연결되어 있는 gcs에 업로드
+    start >> start_message >> make_dataset >> make_lawyer_data >> import_gcs
+    
     # start >> ip_chk >> execute_date_test >> start_message >> make_dataset >> make_lawyer_data >> import_gcs
     # start >> execute_date_test >> start_message >> make_dataset >> make_lawyer_data >> import_gcs
-    start >> start_message >> make_dataset >> make_lawyer_data >> import_gcs
     # start >> execute_date_test
