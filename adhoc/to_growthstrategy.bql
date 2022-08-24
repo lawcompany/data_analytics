@@ -1,0 +1,769 @@
+/*****************************************
+-- 프로필 조회 수
+*****************************************/
+WITH t_lawyer_profile AS (
+SELECT
+  lawyer_id lawyer_slug
+  ,CASE WHEN event_name = 'tag.search.프로필노출' THEN 'profile_card_impression'
+        WHEN event_name = 'tag.search.프로필클릭' THEN 'profile_card_click'
+        WHEN event_name = 'tag.프로필페이지진입(page_view)' THEN 'profile_pv'
+  END event_name
+  ,COUNT(user_pseudo_id) cnt
+  ,COUNT(DISTINCT user_pseudo_id) user_cnt
+FROM (
+SELECT
+  user_pseudo_id
+  ,event_name
+  ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'lawyer_id') lawyer_id
+  -- ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'search_category') search_category
+  -- ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'search_keyword') search_keyword
+FROM `lawtalk-bigquery.analytics_265523655.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20220701' AND '20220718'
+AND event_name IN ('tag.search.프로필노출','tag.search.프로필클릭','tag.프로필페이지진입(page_view)')
+)
+GROUP BY 1,2
+HAVING lawyer_slug IS NOT NULL
+ORDER BY 1,2
+)
+
+
+, t_cnt AS (
+SELECT
+  lawyer_slug
+  ,profile_card_impression profile_card_impression_cnt
+  ,profile_card_click profile_card_click_cnt
+  ,profile_pv profile_pv_cnt
+FROM (SELECT lawyer_slug, event_name, cnt FROM t_lawyer_profile)
+PIVOT(SUM(cnt) FOR event_name IN ('profile_card_impression','profile_card_click','profile_pv'))
+ORDER BY 1
+)
+
+, t_user_cnt AS (
+SELECT
+  lawyer_slug
+  ,profile_card_impression profile_card_impression_user_cnt
+  ,profile_card_click profile_card_click_user_cnt
+  ,profile_pv profile_pv_user_cnt
+FROM (SELECT lawyer_slug, event_name, user_cnt FROM t_lawyer_profile)
+PIVOT(SUM(user_cnt) FOR event_name IN ('profile_card_impression','profile_card_click','profile_pv'))
+ORDER BY 1
+)
+
+, t_lawyer_profile_pivot AS (
+SELECT
+  lawyer_slug
+  ,profile_card_impression_cnt
+  ,profile_card_impression_user_cnt
+  ,profile_card_click_cnt
+  ,profile_card_click_user_cnt
+  ,profile_pv_cnt
+  ,profile_pv_user_cnt
+FROM t_cnt INNER JOIN t_user_cnt USING (lawyer_slug)
+ORDER BY 1
+)
+
+, t_lawyer_advice AS (
+SELECT
+   lawyer lawyer_id
+   ,COUNT(DISTINCT advice) advice_cnt
+FROM
+(
+SELECT
+   _id
+   ,lawyer
+   ,advice
+FROM `lawtalk-bigquery.raw.advicetransactions`
+WHERE status = 'paid'
+)
+GROUP BY 1
+ORDER BY 1
+)
+
+, t_lawyer_posts AS (
+SELECT
+  lawyer lawyer_id
+  ,COUNT(_id) posts_cnt
+FROM `lawtalk-bigquery.raw.posts`
+GROUP BY 1
+ORDER BY 1
+)
+
+, t_lawyer_answers AS (
+SELECT
+  lawyer lawyer_id
+  ,COUNT(_id) answer_cnt
+FROM `lawtalk-bigquery.raw.answers`
+GROUP BY 1
+)
+
+, t_lawyer_videos AS (
+SELECT
+  lawyer lawyer_id
+  ,COUNT(_id) video_cnt
+FROM `lawtalk-bigquery.raw.videos`
+GROUP BY 1
+)
+
+, t_lawyer_050 AS (
+SELECT
+  lawyer lawyer_id
+  ,COUNT(_id) call050_cnt
+FROM `lawtalk-bigquery.raw.callevents`
+WHERE duration >= 60
+GROUP BY 1
+)
+
+, t_lawyer_slug AS (
+SELECT
+  _id lawyer_id
+  ,slug lawyer_slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE REGEXP_CONTAINS(slug,r'^[0-9]{4,4}-')
+)
+
+, BASE AS (
+SELECT
+  user_pseudo_id
+  ,lawyer_id
+  ,COUNT(CASE WHEN event_name = 'tag.search.프로필노출' THEN 1 END) profile_card_impression_cnt
+  ,COUNT(CASE WHEN event_name = 'tag.search.프로필클릭' THEN 1 END)  profile_card_click_cnt
+  ,COUNT(CASE WHEN event_name = 'tag.프로필페이지진입(page_view)' THEN 1 END) profile_pv_cnt
+FROM (
+SELECT
+  user_pseudo_id
+  ,event_name
+  ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'lawyer_id') lawyer_id
+  -- ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'search_category') search_category
+  -- ,(SELECT param.value.string_value FROM UNNEST(event_params) param WHERE param.key = 'search_keyword') search_keyword
+FROM `lawtalk-bigquery.analytics_265523655.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20220701' AND '20220718'
+AND event_name IN ('tag.search.프로필노출','tag.search.프로필클릭','tag.프로필페이지진입(page_view)')
+)
+GROUP BY 1,2
+HAVING lawyer_id IS NOT NULL
+ORDER BY 1,2
+)
+
+, under10 AS (
+SELECT
+  lawyer_id lawyer_slug
+  ,SUM(profile_card_impression_cnt_10) profile_card_impression_cnt_10
+  ,SUM(profile_card_click_cnt_10) profile_card_click_cnt_10
+  ,SUM(profile_pv_cnt_10) profile_pv_cnt_10
+FROM (
+SELECT
+  user_pseudo_id
+  ,lawyer_id
+  ,CASE WHEN profile_card_impression_cnt >= 10 THEN 10 ELSE profile_card_impression_cnt END profile_card_impression_cnt_10
+  ,CASE WHEN profile_card_click_cnt >= 10 THEN 10 ELSE profile_card_click_cnt END profile_card_click_cnt_10
+  ,CASE WHEN profile_pv_cnt >= 10 THEN 10 ELSE profile_pv_cnt END profile_pv_cnt_10
+FROM BASE
+ORDER BY 3 DESC
+)
+GROUP BY 1
+ORDER BY 1
+)
+
+, sh_lawyer AS (
+SELECT
+  t_lawyer_slug.lawyer_id
+  ,t_lawyer_slug.lawyer_slug
+  ,answer_cnt cumulative_answer_cnt
+  ,posts_cnt cumulative_posts_cnt
+  ,video_cnt cumulative_video_cnt
+  ,advice_cnt cumulative_advice_cnt
+  ,call050_cnt cumulative_050_cnt
+  ,profile_card_impression_cnt
+  ,profile_card_impression_cnt_10
+  ,profile_card_impression_user_cnt
+  ,profile_card_click_cnt
+  ,profile_card_click_cnt_10
+  ,profile_card_click_user_cnt
+  ,profile_pv_cnt
+  ,profile_pv_cnt_10
+  ,profile_pv_user_cnt
+FROM t_lawyer_slug LEFT JOIN t_lawyer_answers USING (lawyer_id)
+                   LEFT JOIN t_lawyer_posts USING (lawyer_id)
+                   LEFT JOIN t_lawyer_videos USING (lawyer_id)
+                   LEFT JOIN t_lawyer_advice USING (lawyer_id)
+                   LEFT JOIN t_lawyer_050 USING (lawyer_id)
+                   LEFT JOIN t_lawyer_profile_pivot ON t_lawyer_slug.lawyer_slug = t_lawyer_profile_pivot.lawyer_slug
+                   LEFT JOIN under10 ON t_lawyer_slug.lawyer_slug = under10.lawyer_slug
+ORDER BY 1
+)
+, slot_json AS (
+SELECT
+  _id,
+  DATETIME(createdAt, 'Asia/Seoul') as createdAt,
+  DATETIME(updatedAt, 'Asia/Seoul') as updatedAt,
+  lawyer,
+  number,
+  parse_date('%F',dayString) as dayString,
+  times,
+  PARSE_JSON(REGEXP_REPLACE(times, '\'', '\"')) AS time_json,
+FROM `lawtalk-bigquery.raw.adviceschedules`
+where date(DATETIME(createdAt, 'Asia/Seoul')) >= '2022-07-01'
+)
+, slot_cnt AS (
+SELECT
+  lawyer AS lawyer_id
+  , dayString
+  , time_json
+  , JSON_EXTRACT(time_json, '$.phone') AS phone_slot
+  , JSON_EXTRACT(time_json, '$.video') AS video_slot
+  , JSON_EXTRACT(time_json, '$.visiting') AS visiting_slot
+  , ARRAY_LENGTH(JSON_VALUE_ARRAY(time_json, '$.phone')) AS phone_cnt
+  , ARRAY_LENGTH(JSON_VALUE_ARRAY(time_json, '$.video')) AS video_cnt
+  , ARRAY_LENGTH(JSON_VALUE_ARRAY(time_json, '$.visiting')) AS visiting_cnt
+FROM slot_json
+)
+
+, cj_slot AS (
+SELECT
+  lawyer_id
+  , COUNT(DISTINCT dayString) AS day_cnt
+  , SUM(phone_cnt) AS phone_cnt
+  , SUM(video_cnt) AS video_cnt
+  , SUM(visiting_cnt) AS visiting_cnt
+  , SUM(phone_cnt) / COUNT(DISTINCT dayString)  AS phone_avg
+  , SUM(video_cnt) / COUNT(DISTINCT dayString)  AS video_avg
+  , SUM(visiting_cnt) / COUNT(DISTINCT dayString)  AS visiting_avg
+FROM slot_cnt
+GROUP BY 1
+)
+
+, A AS (
+      SELECT
+      _id as adorders_id
+      ,lawyer as lawyers_id
+      ,status as adorders_status
+      ,date(DATETIME(createdAt,'Asia/Seoul')) as adorders_createdAt_date
+      ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')  as adorders_startAt_timestamp
+      ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as adorders_endAt_timestamp
+      , adLocations
+      , keywords
+      , categories
+      , item
+    from `lawtalk-bigquery.raw.adorders`
+    where date(createdAt) <= '2022-12-31'
+)
+, B AS (
+      SELECT
+      orders_id
+      ,_id as adpayments_id
+    FROM `lawtalk-bigquery.raw.adpayments`, unnest(REGEXP_EXTRACT_ALL(orders, r"ObjectId\('(.*?)'\)")) as orders_id
+        where date(createdAt) <= '2022-12-31'
+)
+, C AS (
+      select
+      _id as adpayments_id
+      ,method as adpayments_method
+      ,status as adpayments_status
+    from `lawtalk-bigquery.raw.adpayments`
+        where date(createdAt) <= '2022-12-31'
+)
+, adorders_history AS (
+SELECT
+    A.adorders_id
+    , A.lawyers_id
+    , A.adorders_createdAt_date
+    , date(A.adorders_startAt_timestamp) as adorders_start_date
+    , date(A.adorders_endAt_timestamp) as adorders_end_date
+    , A.adorders_status
+    , C.adpayments_id
+    , C.adpayments_status
+    , C.adpayments_method
+    , A.adLocations
+    , A.keywords
+    , A.categories
+    , A.item
+FROM A
+  LEFT OUTER JOIN B
+    ON A.adorders_id = B.orders_id
+  LEFT OUTER JOIN C
+    ON B.adpayments_id = C.adpayments_id
+)
+, adorders_pausehistory_tmp AS (
+  SELECT
+  _id as adorders_id
+  ,pauseHistory
+  ,regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_startAt
+  ,regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_endAt
+FROM `lawtalk-bigquery.raw.adorders`
+where 1=1
+  and date(DATETIME(createdAt, 'Asia/Seoul')) <= '2022-12-31'
+  and REGEXP_CONTAINS(pauseHistory, 'ObjectId')
+)
+, adorders_pausehistory AS (
+SELECT
+  adorders_id
+  ,DATE(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_startAt), 'Asia/Seoul')) as pauseHistory_startAt_date
+  ,DATE(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_endAt), 'Asia/Seoul')) as pauseHistory_endAt_date
+FROM adorders_pausehistory_tmp
+  ,unnest(pauseHistory_startAt) as pauseHistory_startAt with offset as pos1
+  ,unnest(pauseHistory_endAt) as pauseHistory_endAt with offset as pos2
+where 1=1
+and pos1=pos2
+)
+, adorder_with_pause AS (
+  SELECT
+    adorders_id
+    , lawyers_id
+    , adorders_createdAt_date
+    , adorders_start_date
+    , adorders_end_date
+    , pauseHistory_startAt_date
+    , pauseHistory_endAt_date
+    , adpayments_id
+    , adorders_status
+    , adpayments_status
+    , adpayments_method
+    , adLocations
+    , keywords
+    , categories
+    , item
+  FROM adorders_history AS A
+  LEFT JOIN adorders_pausehistory AS B
+  USING (adorders_id)
+)
+, adorders_items AS (
+SELECT
+  A.*
+  ,B.name as item_name
+  ,B.price
+FROM adorder_with_pause AS A
+left outer join `lawtalk-bigquery.raw.adproducts` as B on A.item = B._id
+WHERE 1 = 1
+)
+, adorders_item AS (
+SELECT
+  B.slug
+  , A.*
+FROM adorders_items AS A
+FULL OUTER JOIN `lawtalk-bigquery.raw.lawyers` AS B
+ON A.lawyers_id = B._id
+)
+, adorders_item_adCategory_tmp AS (
+  SELECT
+    * EXCEPT(adCategoryId)
+    , adCategoryId
+  FROM adorders_item
+  , UNNEST(regexp_extract_all(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)"))  as adCategoryId
+)
+, adnormal AS (
+SELECT
+  A.adorders_id
+  ,C.name as adCategory_name
+FROM adorders_item_adCategory_tmp AS A
+left outer join `lawtalk-bigquery.raw.adcategories` as C on A.adCategoryId = C._id
+WHERE 1 = 1
+)
+, f_table AS (
+SELECT
+  *
+  , CASE WHEN DATE_DIFF(CURRENT_DATE(), adorders_start_date, DAY) IS NOT NULl THEN DATE_DIFF(CURRENT_DATE(), adorders_start_date, DAY) ELSE 0 END AS ad_days
+  , CASE WHEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) IS NOT NULL THEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) ELSE 0 END AS pause_days
+  , CASE WHEN DATE_DIFF(CURRENT_DATE(), adorders_start_date, DAY) IS NOT NULl THEN DATE_DIFF(CURRENT_DATE(), adorders_start_date, DAY) ELSE 0 END - CASE WHEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) IS NOT NULL THEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) ELSE 0 END AS total_ad_days
+FROM adorders_item
+LEFT JOIN adnormal USING (adorders_id)
+WHERE 1 = 1
+)
+, mid_table AS (
+SELECT * FROM f_table
+WHERE 1 = 1
+  AND adorders_start_date >= '2022-07-01'
+  AND adorders_status = 'apply'
+  AND adpayments_status = 'paid'
+)
+-- SELECT * FROM mid_table WHERE lawyers_id = '5e733ee54840550282088c3d'
+, cj_advice AS (
+SELECT
+  slug
+  , lawyers_id lawyer_id
+  , MAX(total_ad_days) total_ad_days
+  , SUM(price) AS price
+  , COUNT(lawyers_id) AS ad_cnt
+FROM mid_table
+GROUP BY 1, 2
+ORDER BY 1, 2
+)
+
+SELECT
+  lawyer_slug
+  ,IFNULL(cumulative_answer_cnt,0) cumulative_answer_cnt
+  ,IFNULL(cumulative_posts_cnt,0) cumulative_posts_cnt
+  ,IFNULL(cumulative_video_cnt,0) cumulative_video_cnt
+  ,IFNULL(cumulative_advice_cnt,0) cumulative_advice_cnt
+  ,IFNULL(cumulative_050_cnt,0) cumulative_050call_cnt
+  ,IFNULL(profile_card_impression_cnt,0) profile_card_impression_cnt
+  ,IFNULL(profile_card_impression_cnt_10,0) profile_card_impression_cnt_10
+  ,IFNULL(profile_card_impression_user_cnt,0) profile_card_impression_user_cnt
+  ,IFNULL(profile_card_click_cnt,0) profile_card_click_cnt
+  ,IFNULL(profile_card_click_cnt_10,0) profile_card_click_cnt_10
+  ,IFNULL(profile_card_click_user_cnt,0) profile_card_click_user_cnt
+  ,IFNULL(profile_pv_cnt,0) profile_pv_cnt
+  ,IFNULL(profile_pv_cnt_10,0) profile_pv_cnt_10
+  ,IFNULL(profile_pv_user_cnt,0) profile_pv_user_cnt
+  ,IFNULL(day_cnt,0) day_cnt
+  ,IFNULL(phone_cnt,0) phone_cnt
+  ,IFNULL(video_cnt,0) video_cnt
+  ,IFNULL(visiting_cnt,0) visiting_cnt
+  ,IFNULL(phone_avg,0) phone_avg
+  ,IFNULL(video_avg,0) video_avg
+  ,IFNULL(visiting_avg,0) visiting_avg
+  ,IFNULL(total_ad_days,0) total_ad_days
+  ,IFNULL(price,0) price
+  ,IFNULL(ad_cnt,0) ad_cnt
+FROM sh_lawyer LEFT JOIN cj_slot USING (lawyer_id)
+               LEFT JOIN cj_advice USING (lawyer_id)
+ORDER BY 1
+;
+
+/*****************************************
+-- 변호사별 분야별 지표
+******************************************/
+WITH advicetransaction_tmp AS (
+SELECT
+  _id,
+  row_number() over(PARTITION BY advice ORDER BY updatedAt DESC) AS no_by_advice,
+  number,
+  DATETIME(createdAt, 'Asia/Seoul') as createdAt,
+  DATETIME(updatedAt, 'Asia/Seoul') as updatedAt,
+  DATETIME(requestedAt, 'Asia/Seoul') as requestedAt,
+  advice,
+  user,
+  lawyer AS lawyer_id,
+  seller,
+  tid,
+  status,
+  method,
+  originFee,
+  canceled,
+  coupon,
+  metadata,
+  REGEXP_EXTRACT(metadata, r"'page': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_page,
+  REGEXP_EXTRACT(metadata, r"'source': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_source,
+  REGEXP_EXTRACT(metadata, r"'element': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_element,
+  REGEXP_EXTRACT(metadata, r"'position': ([0-9]+),") as metadata_position,
+  REGEXP_EXTRACT(metadata, r"'context': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_context,
+  REGEXP_EXTRACT(metadata, r"'contextAdditional': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_contextAdditional,
+  REGEXP_EXTRACT(metadata, r"'extraInfo': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_extraInfo,
+FROM `lawtalk-bigquery.raw.advicetransactions`
+where 1=1
+  AND DATE(DATETIME(createdAt, 'Asia/Seoul')) >= '2022-07-01'
+  -- AND DATE(DATETIME(createdAt, 'Asia/Seoul')) <= '2022-07-15'
+)
+, advice_complete AS (
+SELECT
+  _id AS advice
+  , status
+  , CASE WHEN kind IS NULL THEN 'phone' ELSE kind END kind
+FROM `lawtalk-bigquery.raw.advice`
+WHERE 1 = 1
+  AND status = 'complete'
+)
+, advicetransaction_tmp2 AS (
+SELECT
+  A.*
+  , B.kind
+FROM advicetransaction_tmp AS A
+LEFT JOIN advice_complete AS B
+USING (advice)
+)
+, advicetransaction AS (
+SELECT
+  *
+  , 1 / ARRAY_LENGTH(SPLIT(metadata_contextAdditional, ",")) AS advice_cnt
+FROM advicetransaction_tmp2
+  , UNNEST(SPLIT(metadata_contextAdditional, ",")) AS category
+)
+, A AS (
+      SELECT
+      _id as adorders_id
+      ,lawyer as lawyer_id
+      ,status as adorders_status
+      ,date(DATETIME(createdAt,'Asia/Seoul')) as adorders_createdAt_date
+      ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')  as adorders_startAt_timestamp
+      ,DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as adorders_endAt_timestamp
+      , adLocations
+      , keywords
+      , categories
+      , item
+    from `lawtalk-bigquery.raw.adorders`
+    where date(createdAt) <= '2022-12-31'
+)
+, B AS (
+      SELECT
+      orders_id
+      ,_id as adpayments_id
+    FROM `lawtalk-bigquery.raw.adpayments`, unnest(REGEXP_EXTRACT_ALL(orders, r"ObjectId\('(.*?)'\)")) as orders_id
+        where date(createdAt) <= '2022-12-31'
+)
+, C AS (
+      select
+      _id as adpayments_id
+      ,method as adpayments_method
+      ,status as adpayments_status
+    from `lawtalk-bigquery.raw.adpayments`
+        where date(createdAt) <= '2022-12-31'
+)
+, adorders_history AS (
+SELECT
+    A.adorders_id
+    , A.lawyer_id
+    , A.adorders_createdAt_date
+    , date(A.adorders_startAt_timestamp) as adorders_start_date
+    , date(A.adorders_endAt_timestamp) as adorders_end_date
+    , A.adorders_status
+    , C.adpayments_id
+    , C.adpayments_status
+    , C.adpayments_method
+    , A.adLocations
+    , A.keywords
+    , A.categories
+    , A.item
+FROM A
+  LEFT OUTER JOIN B
+    ON A.adorders_id = B.orders_id
+  LEFT OUTER JOIN C
+    ON B.adpayments_id = C.adpayments_id
+)
+, adorders_pausehistory_tmp AS (
+  SELECT
+  _id as adorders_id
+  ,pauseHistory
+  ,regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_startAt
+  ,regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_endAt
+FROM `lawtalk-bigquery.raw.adorders`
+where 1=1
+  and date(DATETIME(createdAt, 'Asia/Seoul')) <= '2022-12-31'
+  and REGEXP_CONTAINS(pauseHistory, 'ObjectId')
+)
+, adorders_pausehistory AS (
+SELECT
+  adorders_id
+  ,DATE(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_startAt), 'Asia/Seoul')) as pauseHistory_startAt_date
+  ,DATE(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_endAt), 'Asia/Seoul')) as pauseHistory_endAt_date
+FROM adorders_pausehistory_tmp
+  ,unnest(pauseHistory_startAt) as pauseHistory_startAt with offset as pos1
+  ,unnest(pauseHistory_endAt) as pauseHistory_endAt with offset as pos2
+where 1=1
+and pos1=pos2
+)
+, adorder_with_pause AS (
+  SELECT
+    adorders_id
+    , lawyer_id
+    , adorders_createdAt_date
+    , adorders_start_date
+    , adorders_end_date
+    , pauseHistory_startAt_date
+    , pauseHistory_endAt_date
+    , adpayments_id
+    , adorders_status
+    , adpayments_status
+    , adpayments_method
+    , adLocations
+    , keywords
+    , categories
+    , item
+  FROM adorders_history AS A
+  LEFT JOIN adorders_pausehistory AS B
+  USING (adorders_id)
+)
+, adorders_items AS (
+SELECT
+  A.*
+  ,B.name as item_name
+  ,B.price
+FROM adorder_with_pause AS A
+left outer join `lawtalk-bigquery.raw.adproducts` as B on A.item = B._id
+WHERE 1 = 1
+)
+, lawyer AS (
+SELECT
+  _id AS lawyer_id
+  ,slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE REGEXP_CONTAINS(slug,r'^[0-9]{4,4}-')
+)
+, adorders_item AS (
+SELECT
+  B.slug
+  , B.lawyer_id AS lawyer_id
+  , A.adorders_id
+  , A.adorders_createdAt_date
+  , A.adorders_start_date
+  , A.adorders_end_date
+  , A.pauseHistory_startAt_date
+  , A.pauseHistory_endAt_date
+  , A.adpayments_id
+  , A.adorders_status
+  , A.adpayments_status
+  , A.adpayments_method
+  , A.adLocations
+  , A.keywords
+  , A.categories
+  , A.item
+  , A.item_name
+  , A.price
+FROM adorders_items AS A
+FULL OUTER JOIN lawyer AS B
+ON A.lawyer_id = B.lawyer_id
+)
+, adorders_item_adCategory_tmp AS (
+  SELECT
+    * EXCEPT(adCategoryId)
+    , adCategoryId
+  FROM adorders_item
+  , UNNEST(regexp_extract_all(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)"))  as adCategoryId
+)
+, adnormal AS (
+SELECT
+  A.adorders_id
+  ,C.name as adCategory_name
+FROM adorders_item_adCategory_tmp AS A
+FULL OUTER join `lawtalk-bigquery.raw.adcategories` as C on A.adCategoryId = C._id
+WHERE 1 = 1
+)
+, f_table AS (
+SELECT
+  *
+  , CASE WHEN DATE_DIFF(adorders_end_date, adorders_start_date, DAY) IS NOT NULl THEN DATE_DIFF(adorders_end_date, adorders_start_date, DAY) ELSE 0 END AS ad_days
+  , CASE WHEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) IS NOT NULL THEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) ELSE 0 END AS pause_days
+  , CASE WHEN DATE_DIFF(adorders_end_date, adorders_start_date, DAY) IS NOT NULl THEN DATE_DIFF(adorders_end_date, adorders_start_date, DAY) ELSE 0 END - CASE WHEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) IS NOT NULL THEN DATE_DIFF(pauseHistory_endAt_date, pauseHistory_startAt_date, DAY) ELSE 0 END AS total_ad_days
+FROM adorders_item
+FULL OUTER JOIN adnormal USING (adorders_id)
+WHERE 1 = 1
+)
+, sel_table AS (
+SELECT
+  *
+  , CASE WHEN adorders_start_date >= '2022-07-01' AND adorders_status = 'apply'  AND adpayments_status = 'paid' THEN '광고' ELSE '비광고' END ad_tf
+FROM f_table
+WHERE 1 = 1
+)
+, tmp_table AS (
+SELECT
+  a1.*
+  , a2.lawyer_id AS lawyer
+  , a2.adCategory_name
+  , a2.slug
+  , a2.ad_tf
+FROM advicetransaction AS a1
+FULL OUTER JOIN sel_table AS a2
+ON a1.lawyer_id = a2.lawyer_id
+  AND a1.category = a2.adCategory_name
+)
+-- SELECT
+--   slug
+--   , lawyer
+--   , ad_tf
+--   , adCategory_name
+--   , SUM(advice_cnt)
+-- FROM tmp_table WHERE lawyer = '5e733ee54840550282088c3d'
+-- GROUP BY 1, 2, 3, 4
+-- ORDER BY 1, 2, 3, 4
+-- , distinct_table AS (
+-- SELECT
+--   DISTINCT
+--   lawyer
+--   , slug
+-- FROM tmp_table AS a
+-- )
+-- , all_category AS (
+-- SELECT
+--   lawyer
+--   , slug
+--   , b.name AS adCategory_name
+-- FROM distinct_table AS a
+-- LEFT JOIN `lawtalk-bigquery.raw.adcategories` AS b
+-- ON 1 = 1
+-- )
+-- , all_join_table AS (
+-- SELECT
+--   a.lawyer
+--   , a.adCategory_name
+--   , a.slug
+--   , CASE WHEN b.ad_tf IS NULL THEN '비광고' ELSE b.ad_tf END AS ad_tf
+--   , CASE WHEN b.advice_cnt IS NULL THEN 0 ELSE b.advice_cnt END AS advice_cnt
+-- FROM all_category AS a
+-- LEFT JOIN tmp_table AS b
+-- ON a.lawyer = b.lawyer AND a.slug = b.slug AND a.adCategory_name = b.adCategory_name
+-- )
+, tmp AS (
+SELECT
+  slug
+  , lawyer
+  , ad_tf
+  , adCategory_name
+  , CASE WHEN kind IS NULL THEN 'phone' ELSE kind END AS kind
+  , CASE WHEN SUM(advice_cnt) IS NULL THEN 0 ELSE SUM(advice_cnt) END AS advice_cnt
+  , SUM(originFee) AS originFee
+FROM tmp_table
+WHERE 1 = 1
+  AND slug IS NOT NULL
+  AND adCategory_name IS NOT NULL
+GROUP BY 1, 2, 3, 4, 5
+)
+ SELECT *
+  FROM tmp
+PIVOT(SUM(advice_cnt) AS advice_cnt, SUM(originFee) AS originFee FOR kind IN ('phone', 'video', 'visiting'))
+ORDER BY 1, 2, 3, 4
+;
+
+/*****************************************
+-- 후기개수
+*****************************************/
+/*
+홈페이지에서 노출되고 있는 후기 개수 뽑는 몽고DB 쿼리
+db.advice.aggregate([{
+  $match: {
+    'review.rate': { $exists: true},
+    '$or': [
+      { 'review.hide': { $exists: false } },
+      { 'review.hide': false }
+    ]
+  }
+}, {
+    $group: {
+        _id: '$lawyer',
+        count: {
+            $sum: 1
+        }
+    }
+}])
+*/
+
+WITH review_cnts AS (
+-- 변호사별 노출되고 있는 후기 개수
+SELECT
+  lawyer
+  -- , review
+  -- , REGEXP_EXTRACT(review, r'\'rate\': (\d)')
+  -- , REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)')
+  , COUNT(review) AS review_cnt
+FROM `lawtalk-bigquery.raw.advice`
+WHERE 1 = 1
+    AND status = 'complete'
+    AND REGEXP_EXTRACT(review, r'\'rate\': (\d)') IS NOT NULL
+    AND (REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') IS NULL OR REGEXP_EXTRACT(review, r'\'hide\': (a-zA-Z+)') != 'false')
+    AND DATE(DATETIME(createdAt, 'Asia/Seoul')) <= '{}'
+GROUP BY 1
+)
+, lawyers AS (
+-- lawyer slug가 있는 변호사만 뽑는 쿼리
+SELECT
+  _id AS lawyer
+  , slug
+FROM `lawtalk-bigquery.raw.lawyers`
+WHERE 1 = 1
+  AND REGEXP_CONTAINS(slug, r'\d{{4}}-[가-힣]+')
+)
+SELECT
+  lawyers.slug
+  , lawyers.lawyer
+  , review_cnts.review_cnt
+FROM lawyers
+LEFT JOIN review_cnts USING (lawyer)
+;
