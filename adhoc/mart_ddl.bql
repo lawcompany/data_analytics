@@ -1,1 +1,185 @@
-create table 
+create table `mart.lt_s_lawyer_info`
+(
+    b_date date options(description="기준일자")
+  , lawyer_id string options(description="변호사ID")
+  , slug string options(description="슬러그")
+  , lawyer_name string options(description="변호사 이름")
+  , manager string options(description="담당BM")
+  , is_approved int options(description="회원 승인 여부[1:승인 0:미승인]")
+  , is_opend int options(description="공개변호사 여부[1:공개변호사 0:비공개변호사]")
+  , is_ad int options(description="광고변호사 여부[1:광고변호사 0:비광고변호사]")
+  , paid_kind string options(description="유/무료 구분[ paid:유료 free:무료 null: 비광고변호사]")
+  , is_paused int options(description="일시정지 여부[1:일시정지 0:일시정지아님]")
+  , is_fully_profile int options(description="프로필 100% 작성 여부 [1: 100%작성 0: 100%미만 작성]")
+  , is_resting int options(description="휴면 여부[1:휴면 0:활성]")
+  , is_category_ad int options(description="분야광고주 여부[1: 분야광고주 0:비광고주]")
+  , is_location_ad int options(description="지역광고주 여부[1: 지역광고주 0:비광고주]")
+  , is_plus_ad int options(description="플러스광고주 여부[1: 플러스광고주 0:비광고주]")
+  , category_ad_cnt numeric options(description="광고하고 있는 분야 갯수")
+  , location_ad_cnt numeric options(description="광고하고 있는 지역 갯수")
+  , plus_ad_cnt numeric options(description="광고하고 있는 플러스 광고의 분야갯수")
+  , address_location_id string options(description="변호사의 주소 기반 지역 중분류ID")
+  , address_location_name string options(description="변호사의 주소 기반 지역 중분류 이름")
+  , exam string options(description="변호사 시험")
+  , exam_round string options(description="시험횟수")
+  , exam_generation string options(description="기수")
+  , exam_year int options(description="시험년도")
+  , acc_review_cnt numeric options(description="누적 후기 갯수")
+  , acc_qna_cnt numeric options(description="누적 답변 수")
+  , acc_post_cnt numeric options(description="누적 해결사례 수")
+  , acc_legaltip_cnt numeric options(description="누적 법률TIP 수")
+  , acc_counsel_cnt numeric options(description="누적 유료상담 수")
+  , acc_call_cnt numeric options(description="누적 050콜 수(60초 이상)")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    descripytion="[로톡] 변호사 정보",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_s_lawyer_ads`
+(
+    b_date date options(description="기준일자")
+  , lawyer_id string options(description="변호사ID")
+  , slug string options(description="슬러그")
+  , lawyer_name string options(description="변호사 이름")
+  , manager string options(description="담당BM")
+  , kind string options(description="광고유형[category:분야, location: 지역, plus: 플러스]")
+  , ad_id string options(description="광고ID(분야면 분야ID, 지역이면 지역ID, 플러스면 분야ID)")
+  , ad_name string options(description="광고 이름(분야면 분야이름, 지역이면 지역이름, 플러스면 분야 이름)")
+  , is_free int64 options(description="무료광고여부[1:맞음 0:아님]")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    descripytion="[로톡] 일자별 변호사별 광고 이용 현황(기준일자에 사용중인 광고에 대해 리스트업)",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_r_user_pay_counsel`
+(
+  b_date date options(description="기준일자")
+, counsel_id string options(description="유료상담ID")
+, pay_id string options(description="결제ID")
+, user_id string options(description="의뢰인ID")
+, user_email string options(description="의뢰인 이메일")
+, user_name string options(description="의뢰인 이름")
+, lawyer_id string options(description="변호사ID")
+, slug string options(description="슬러그")
+, lawyer_name string options(description="변호사 이름")
+, manager string options(description="담당BM")
+, kind string options(description="상담종류[phone,video,visiting,null]")
+, pay_status string options(description="결제 상태[상태값:비고란 참고]")
+, pay_method string options(description="결제 종류[카드냐 쿠폰이냐...]")
+, price numeric options(description="결제한 금액")
+, origin_fee numeric options(description="원가격")
+, good_name string options(description="상품명")
+, coupon string options(description="쿠폰ID(쿠폰을 사용했다면 기록)")
+, device string options(description="결제한 디바이스 정보(결제 플랫폼을 알기위해)")
+, context string options(description="분야인지/지역인지")
+, context_additional string options(description="키워드 연관 분야(,로 구분)")
+, extra_info string options(description="상담 예약 직전 검색 키워드 혹은 선택 지역")
+, adid string options(description="광고식별자")
+, pay_req_dt timestamp options(description="결제 요청일시")
+, pay_crt_dt timestamp options(description="결제 생성일시")
+, pay_upd_dt timestamp options(description="결제 업데이트일시")
+, pay_canc_dt timestamp options(description="결제 취소일시(pay_status=canceled일때)")
+, body string options(description="상담글")
+, counsel_status string options(description="상담 상태[상태값:비고란 참고]")
+, counsel_crt_dt timestamp options(description="상담예약(시도)일시")
+, counsel_exc_dt timestamp options(description="상담일시")
+, counsel_upd_dt timestamp options(description="상담관련 변경 일시")
+, ad_category string options(description="상담 카테고리")
+, lawyer_survey_id string options(description="상담 후 변호사가 작성한 상담결과지ID")
+, user_review_id string options(description="상담 후 의뢰인이 작성한 리뷰ID")
+, user_review_dt timestamp options(description="상담 후 의뢰인이 리뷰를 작성한 일시")
+, user_review_rate string options(description="상담 후 의뢰인의 리뷰 평점")
+, user_review_title string options(description="상담 후 의뢰인의 리뷰 제목")
+, user_review_body string options(description="상담 후 의뢰인의 리뷰 내용")
+)
+partition by b_date
+cluster by user_id, lawyer_id, counsel_exc_dt
+options
+(
+    descripytion="[로톡]의뢰인 유료 상담로그(advice와 advicetransactions를 조인하여 필요정보만 발췌하여 정리한 테이블)",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_r_lawyer_ad_sales`
+(
+    b_date date options(description="기준일자")
+  , pay_id string options(description="광고결제ID")
+  , order_id string options(description="광고주문ID")
+  , lawyer_id string options(description="변호사ID")
+  , slug string options(description="슬러그")
+  , lawyer_name string options(description="변호사 이름")
+  , manager string options(description="담당BM")
+  , kind string options(description="광고유형[category:분야, location: 지역, plus: 플러스]")
+  , location_id string options(description="지역ID(kind=location일때)")
+  , location_name string options(description="지역 이름(kind=location일때)")
+  , location_group_id string options(description="지역 중분류 ID(kind=location일때)")
+  , location_group_name string options(description="지역 중분류 이름(kind=location일때)")
+  , location_category_id string options(description="지역 대분류 ID(kind=location일때)")
+  , location_category_name string options(description="지역 대분류 이름(kind=location일때)")
+  , category_id string options(description="분야 ID(kind=catogory or plus일때)")
+  , category_name string options(description="분야 이름(kind=catogory or plus일때)")
+  , pay_status string options(description="결제상태[paid,canceled]")
+  , tot_fixed_fee numeric options(description="결제한 총금액")
+  , tot_origin_fee numeric options(description="원가격 총합")
+  , subscription_id string options(description="구독결제 ID")
+  , coupon_id string options(description="쿠폰ID")
+  , pay_method string options(description="결제 방법")
+  , pay_req_dt timestamp options(description="결제 요청일시")
+  , pay_crt_dt timestamp options(description="결제 생성 일시")
+  , pay_upd_dt timestamp options(description="결제 업데이트일시")
+  , pay_canc_dt timestamp options(description="결제 취소 일시(pay_status=canceled일때)")
+  , price numeric options(description="상품 가격(주문건당 원가격)")
+  , order_status string options(description="주문 상태[apply, cancel, ready]")
+  , ad_start_dt timestamp options(description="실제 광고 시작일")
+  , ad_end_dt timestamp options(description="실제 광고 종료일")
+  , pause_start_dt timestamp options(description="일시정지 시작일")
+  , pause_end_dt timestamp options(description="일시정지 종료일")
+  , is_auto_extend int options(description="자동 연장 여부[1: 자동연장 0:자동연장 아님]")
+  , order_crt_dt timestamp options(description="주문 생성 일시")
+  , order_upd_dt timestamp options(description="주문 업데이트 일시")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    descripytion="[로톡] 변호사 광고 구매 로그(adorders(주문)와 adpayments(결제), betaadorders(플러스광고) 테이블을 조인하여 정리한 테이블)",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_w_lawyer_counsel`
+(
+    b_date date options(description="기준일자")
+  , lawyer_id string options(description="변호사ID")
+  , slug string options(description="슬러그")
+  , lawyer_name string options(description="변호사 이름")
+  , manager string options(description="담당BM")
+  , cat_mapping_standard string options(description="분야 매핑 기준 [keyword : 의뢰인이 입력학 키워드 기반, category : 변호사가 리뷰지에 작성한 분야 기반]"
+  , category_id string options(description="분야 ID")
+  , category_name string options(description="분야 이름")
+  , phone_cnt numeric options(description="15분 전화상담 건수")
+  , phone_price numeric options(description="15분 전화상담 금액")
+  , vidoe_cnt numeric options(description="20분 영상상담 건수")
+  , video_price numeric options(description="20분 영상상담 금액")
+  , visiting_cnt numeric options(description="30분 방문상담 건수")
+  , visiting_price numeric options(description="30분 방문 상담 금액")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    descripytion="[로톡] 일자별 변호사별 유료상담 현황",
+    labels=[("service","lawtalk")]
+)
+;
