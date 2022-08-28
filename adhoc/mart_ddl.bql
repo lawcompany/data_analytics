@@ -35,7 +35,7 @@ partition by b_date
 cluster by lawyer_id
 options
 (
-    descripytion="[로톡] 변호사 정보",
+    description="[로톡] 변호사 정보",
     labels=[("service","lawtalk")]
 )
 ;
@@ -56,7 +56,7 @@ partition by b_date
 cluster by lawyer_id
 options
 (
-    descripytion="[로톡] 일자별 변호사별 광고 이용 현황(기준일자에 사용중인 광고에 대해 리스트업)",
+    description="[로톡] 일자별 변호사별 광고 이용 현황(기준일자에 사용중인 광고에 대해 리스트업)",
     labels=[("service","lawtalk")]
 )
 ;
@@ -106,7 +106,7 @@ partition by b_date
 cluster by user_id, lawyer_id, counsel_exc_dt
 options
 (
-    descripytion="[로톡]의뢰인 유료 상담로그(advice와 advicetransactions를 조인하여 필요정보만 발췌하여 정리한 테이블)",
+    description="[로톡]의뢰인 유료 상담로그(advice와 advicetransactions를 조인하여 필요정보만 발췌하여 정리한 테이블)",
     labels=[("service","lawtalk")]
 )
 ;
@@ -153,7 +153,7 @@ partition by b_date
 cluster by lawyer_id
 options
 (
-    descripytion="[로톡] 변호사 광고 구매 로그(adorders(주문)와 adpayments(결제), betaadorders(플러스광고) 테이블을 조인하여 정리한 테이블)",
+    description="[로톡] 변호사 광고 구매 로그(adorders(주문)와 adpayments(결제), betaadorders(플러스광고) 테이블을 조인하여 정리한 테이블)",
     labels=[("service","lawtalk")]
 )
 ;
@@ -165,7 +165,7 @@ create table `mart.lt_w_lawyer_counsel`
   , slug string options(description="슬러그")
   , lawyer_name string options(description="변호사 이름")
   , manager string options(description="담당BM")
-  , cat_mapping_standard string options(description="분야 매핑 기준 [keyword : 의뢰인이 입력학 키워드 기반, category : 변호사가 리뷰지에 작성한 분야 기반]"
+  , cat_mapping_standard string options(description="분야 매핑 기준 [keyword : 의뢰인이 입력학 키워드 기반, category : 변호사가 리뷰지에 작성한 분야 기반]")
   , category_id string options(description="분야 ID")
   , category_name string options(description="분야 이름")
   , phone_cnt numeric options(description="15분 전화상담 건수")
@@ -179,7 +179,7 @@ partition by b_date
 cluster by lawyer_id
 options
 (
-    descripytion="[로톡] 일자별 변호사별 유료상담 현황",
+    description="[로톡] 일자별 변호사별 유료상담 현황",
     labels=[("service","lawtalk")]
 )
 ;
