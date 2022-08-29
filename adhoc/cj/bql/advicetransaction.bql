@@ -26,7 +26,7 @@ SELECT
   REGEXP_EXTRACT(metadata, r"'extraInfo': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_extraInfo,
 FROM `lawtalk-bigquery.raw.advicetransactions`
 where 1=1
-  AND DATE(DATETIME(createdAt, 'Asia/Seoul')) BETWEEN '2022-07-01' AND '2022-07-15'
+  AND DATE(DATETIME(createdAt, 'Asia/Seoul')) BETWEEN '2022-08-16' AND '2022-08-31'
   AND status = 'paid'
 )
 , slug_lawyers AS (
@@ -44,3 +44,4 @@ FROM advicetransaction_tmp AS A
 LEFT JOIN slug_lawyers AS B
 ON A.lawyer_id = B._id
 WHERE 1 = 1
+
