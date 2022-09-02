@@ -92,7 +92,7 @@ create table `mart.lt_r_user_pay_counsel`
 , pay_canc_dt datetime options(description="결제 취소일시(pay_status=canceled일때)")
 , body string options(description="상담글")
 , counsel_status string options(description="상담 상태[상태값:비고란 참고]")
-, counsel_crt_dt datetime options(description="상담예약(시도)일시")
+, counsel_crt_dt datetime options(description="상담예약(시도)일시")
 , counsel_exc_dt datetime options(description="상담일시")
 , counsel_upd_dt datetime options(description="상담관련 변경 일시")
 , ad_category string options(description="상담 카테고리")
