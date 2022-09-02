@@ -1,0 +1,238 @@
+-- lt_r_lawyer_ad_sales
+with lawyer as
+( -- 변호사 정보
+    select _id as lawyer_id
+         , name as lawyer_name
+         , manager
+         , case when slug = '5e314482c781c20602690b79' and _id = '5e314482c781c20602690b79' then '탈퇴한 변호사'
+                when slug = '5e314482c781c20602690b79' and _id = '616d0c91b78909e152c36e71' then '미활동 변호사'
+                when slug like '%탈퇴한%' then concat(slug,'(탈퇴보류)')
+                else slug
+           end as slug
+      from `lawtalk-bigquery.raw.lawyers`
+     where role = 'lawyer'
+)
+, adorders_base as
+( -- adorders에서 필요한 정보만 간추려 가져온다.
+	select _id as order_id
+	     , lawyer as lawyer_id
+	     , regexp_extract_all(adLocations, r"'locationId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as location_id
+	     , regexp_extract_all(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as category_id
+	     , coupon as coupon_id
+	     , price
+	     , status as order_status
+	     , datetime(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_start_dt
+	     , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_end_dt
+	     , regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_start_dt
+	     , regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_end_dt
+	     , regexp_extract(autoExtendTerm,r"'status': \'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'") as is_auto_extend
+	     , datetime(createdAt,'Asia/Seoul') as order_crt_dt
+	     , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
+	from `lawtalk-bigquery.raw.adorders`
+	where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+	  -- and date(createdAt,'Asia/Seoul') between date('2022-06-16')-15 and
+)
+, adorders_pause as
+(
+    select order_id
+         , array_agg(pause_start_dt) as pause_start_dt
+         , array_agg(pause_end_dt) as pause_end_dt
+      from
+      (
+          select order_id
+               , datetime(parse_timestamp('%Y, %m, %e, %H, %M', pause_start_dt), 'Asia/Seoul') as pause_start_dt
+               , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', pause_end_dt), 'Asia/Seoul') as pause_end_dt
+            from adorders_base
+               , unnest(pause_start_dt) as pause_start_dt with offset as pos1
+               , unnest(pause_end_dt) as pause_end_dt with offset as pos2
+           where pos1 = pos2
+      ) a
+     group by order_id
+)
+, adorders_location as
+( -- 지역광고 주문건에 대해 지역정보를 가져온다.
+    select a.order_id
+         , array_agg(a.location_id) as location_id
+         , array_agg(b.name) as location_name
+         , b.adLocationGroup as location_group_id
+         , c.name as location_group_name
+         , c.adLocationCategory as location_category_id
+         , d.name as location_category_name
+      from
+      (
+          select order_id
+               , location_id
+            from adorders_base,
+                 unnest(location_id) as location_id
+      ) a
+      left join `raw.adlocations` b
+        on a.location_id = b._id
+      left join `raw.adlocationgroups` c
+        on b.adLocationGroup = c._id
+      left join `raw.adlocationcategories` d
+        on c.adLocationCategory = d._id
+      group by a.order_id
+             , b.adLocationGroup
+             , c.name
+             , c.adLocationCategory
+             , d.name
+)
+, adorders_category as
+( -- 분야광고 주문건에 대해 분야정보를 가져온다.
+    select a.order_id
+         , a.category_id
+         , b.name as category_name
+      from
+      (
+          select order_id
+               , category_id
+            from adorders_base,
+                 unnest(category_id) as category_id
+      ) a
+      left join `raw.adcategories` b
+        on a.category_id = b._id
+)
+, adpayments_base as
+( -- adpayments에서 필요한 정보만 간추려 가져온다.
+    select _id as pay_id
+         , status as pay_status
+         , fixedFee as tot_fixed_fee
+         , originFee as tot_origin_fee
+         , adSubscription as subscription_id
+         , coupon as coupon_id
+         , method as pay_method
+         , datetime(requestedAt,'Asia/Seoul')  as pay_req_dt
+         , datetime(createdAt,'Asia/Seoul') as pay_crt_dt
+         , datetime(updatedAt,'Asia/Seoul') as pay_upd_dt
+         , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(canceled, r"'at': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as pay_canc_dt
+         , order_id
+      from `raw.adpayments`
+         , unnest(regexp_extract_all(orders, r"ObjectId\('(.*?)'\)")) as order_id
+)
+-- 각 정보들 join하여 최종 데이터 구성
+select date(a.order_crt_dt) as b_date
+     , b.pay_id
+     , a.order_id
+     , a.lawyer_id
+     , c.slug
+     , c.lawyer_name
+     , c.manager
+     , case when array_length(a.location_id) > 0 then 'location'
+            when array_length(a.category_id) > 0 then 'category'
+            else 'N/A'
+       end as kind
+     , d.location_id
+     , d.location_name
+     , d.location_group_id
+     , d.location_group_name
+     , d.location_category_id
+     , d.location_category_name
+     , e.category_id
+     , e.category_name
+     , b.pay_status
+     , b.tot_fixed_fee
+     , b.tot_origin_fee
+     , b.subscription_id
+     , coalesce(a.coupon_id,b.coupon_id) as coupon_id
+     , b.pay_method
+     , b.pay_req_dt
+     , b.pay_crt_dt
+     , b.pay_upd_dt
+     , b.pay_canc_dt
+     , a.price
+     , a.order_status
+     , a.ad_start_dt
+     , a.ad_end_dt
+     , f.pause_start_dt
+     , f.pause_end_dt
+     , a.is_auto_extend
+     , a.order_crt_dt
+     , a.order_upd_dt
+  from adorders_base a
+  left join adpayments_base b
+    on a.order_id = b.order_id
+  left join lawyer c
+    on a.lawyer_id = c.lawyer_id
+  left join adorders_location d
+    on a.order_id = d.order_id
+  left join adorders_category e
+    on a.order_id = e.order_id
+  left join adorders_pause f
+    on a.order_id = f.order_id
+;
+
+
+
+select status as pay_status
+     , fixedFee as tot_fixed_fee
+     , originFee as tot_origin_fee
+     , adSubscription as subscription_id
+     , coupon as coupon_id
+     , method as pay_method
+     , timestamp(datetime(requestedAt,'Asia/Seoul'))  as pay_req_dt
+     , timestamp(datetime(createdAt,'Asia/Seoul')) as pay_crt_dt
+     , timestamp(datetime(updatedAt,'Asia/Seoul')) as pay_upd_dt
+     , DATETIME(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(canceled, r"'at': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as pay_canc_dt
+     , order_id
+  from `raw.adpayments`
+     , unnest(regexp_extract_all(orders, r"ObjectId\('(.*?)'\)")) as order_id
+limit 100;
+
+
+
+
+select *
+from adorders_base a
+left join adorders_location b
+on a.order_id = b.order_id
+left join adorders_category c
+on a.order_id = c.order_id
+where b.location_id is null and c.category_id is null;
+
+    select order_id
+         , location_id
+      from adorders_base,
+           unnest(location_id) as location_id;
+
+, adorders_location as
+(
+    select order_id
+         , location_id
+      from adorders_base,
+           unnest(location_id) as location_id
+)
+;
+
+
+
+drop table `mart.test_lja`;
+create table `mart.test_lja`
+(
+_id string,
+pause_start_dt array<string>,
+pause_end_dt array<string>
+);
+
+insert into `mart.test_lja`
+select _id
+	     , regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_start_dt
+	     , regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_end_dt
+	from `lawtalk-bigquery.raw.adorders`
+	where _id in ('63084f6e67ba55004cd5a899','62fae690d021f703a1525d8a','6038b39601b4a601d7fbcf13','6064482404da9d00a9d8b733');
+
+select *
+from `mart.test_lja` ;
+
+select *
+from `raw.lawyers`
+where role <> 'lawyer'
+limit 1000;
+
+select *
+from `lawtalk-bigquery.raw.adorders`
+where pauseHistory <> '[]'
+and pauseHistory is not null
+limit 1000;
+
+select distinct role
+from `raw.lawyers`;
