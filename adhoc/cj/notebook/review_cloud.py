@@ -8,7 +8,7 @@ import datetime
 import re
 from tqdm import tqdm
 
-import pandas as pd
+import pandas as pd 
 import numpy as np
 
 from google.cloud import bigquery
