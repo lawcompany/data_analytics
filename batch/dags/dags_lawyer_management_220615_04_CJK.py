@@ -36,9 +36,9 @@ with models.DAG(
         schedule_interval=datetime.timedelta(days=1),
         # schedule_interval= '00 1 * * *', #한국시간기준 매일 아침 10시 00분에 스타트
         default_args=default_args) as dag:
-    
-    start = dummy.DummyOperator(task_id='start')
 
+    start = dummy.DummyOperator(task_id='start')
+'''
     check_bm_activities = BigQueryTableExistenceSensor(
         #빅쿼리 예약된 쿼리로 만들어진 테이블
         task_id = 'check_bm_activities',
@@ -47,7 +47,8 @@ with models.DAG(
         dataset_id= 'lawyer_management_bm_activities',
         table_id = '0_total_{{ ds_nodash }}',
     )
-    
+'''
+
     # start>>check_bm_activities
 
     users_x = BigQueryExecuteQueryOperator(
@@ -60,7 +61,7 @@ with models.DAG(
             #standardSQL
             WITH users as
             (
-              SELECT 
+              SELECT
                 _id as users_id
                 ,username
                 ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
@@ -149,7 +150,7 @@ with models.DAG(
               ,case when C.users_id is not null then True else False end as isSMSMarketingAccept
               ,smsMarketingAccept
               FROM users as A
-            LEFT OUTER JOIN 
+            LEFT OUTER JOIN
             (
               SELECT
                 users_id
@@ -160,7 +161,7 @@ with models.DAG(
                 and '{{ ds }}' between date(emailMarketingAccept_startDate) and date(emailMarketingAccept_endDate)
               group by 1
             ) as B on A.users_id = B.users_id
-            LEFT OUTER JOIN 
+            LEFT OUTER JOIN
             (
               SELECT
                 users_id
@@ -184,7 +185,7 @@ with models.DAG(
             #standardSQL
             WITH users as
             (
-              SELECT 
+              SELECT
                 _id as users_id
                 ,username
                 ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
@@ -273,7 +274,7 @@ with models.DAG(
               ,case when C.users_id is not null then True else False end as isSMSMarketingAccept
               ,smsMarketingAccept
               FROM users as A
-            LEFT OUTER JOIN 
+            LEFT OUTER JOIN
             (
               SELECT
                 users_id
@@ -284,7 +285,7 @@ with models.DAG(
                 and '{{ ds }}' between date(emailMarketingAccept_startDate) and date(emailMarketingAccept_endDate)
               group by 1
             ) as B on A.users_id = B.users_id
-            LEFT OUTER JOIN 
+            LEFT OUTER JOIN
             (
               SELECT
                 users_id
@@ -306,7 +307,7 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            SELECT 
+            SELECT
               _id as lawyers_id
              -- ,TIMESTAMP_ADD(createdAt, INTERVAL  9 HOUR) as createdAt
               ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
@@ -344,7 +345,7 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            SELECT 
+            SELECT
               _id as lawyers_id
              -- ,TIMESTAMP_ADD(createdAt, INTERVAL  9 HOUR) as createdAt
               ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
@@ -382,16 +383,16 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            SELECT 
+            SELECT
                 A.adorders_id
                 ,A.lawyers_id
                 ,A.adorders_createdAt_date
                 ,date(A.adorders_startAt_timestamp) as adorders_start_date
                 ,date(A.adorders_endAt_timestamp) as adorders_end_date
                 ,A.adorders_status
-                ,C.adpayments_status 
-                ,C.adpayments_method 
-            FROM 
+                ,C.adpayments_status
+                ,C.adpayments_method
+            FROM
             (
                 select
                   _id as adorders_id
@@ -408,7 +409,7 @@ with models.DAG(
             ) as A
             left outer join
             (
-                SELECT 
+                SELECT
                   orders_id
                   ,_id as adpayments_id
                 --   ,REGEXP_EXTRACT_ALL(orders, r"ObjectId\('(.*?)'\)")
@@ -427,7 +428,7 @@ with models.DAG(
                 --     where date(createdAt) <= '2021-11-28'
             ) as C on B.adpayments_id = C.adpayments_id
             '''
-    )        
+    )
 
     adorders_pausehistory = BigQueryExecuteQueryOperator(
         task_id='adorders_pausehistory',
@@ -447,7 +448,7 @@ with models.DAG(
               ,date(DATETIME(parse_timestamp('%Y, %m, %e, %H, %M', pauseHistory_endAt), 'Asia/Seoul')) as pauseHistory_endAt_date
             from
             (
-              SELECT 
+              SELECT
                 _id as adorders_id
                 ,pauseHistory
                 ,regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") as pauseHistory_startAt
@@ -477,7 +478,7 @@ with models.DAG(
             select
               lawyer_advertisement_term_daily.* except(Date)
               ,lawyer_advertisement_term_daily.date as advertisement_active_date
-            from 
+            from
             (
               select
                 A.*
@@ -505,7 +506,7 @@ with models.DAG(
 
             -- order by adorders_id asc, advertisement_active_date asc
             '''
-    )        
+    )
 
     betaadorders_active_daily = BigQueryExecuteQueryOperator(
         task_id='betaadorders_active_daily',
@@ -532,7 +533,7 @@ with models.DAG(
               and A.status = 'apply'
               and parse_date('%F', B.date) between A.betaadorders_startAt_date and A.betaadorders_endAt_date
             '''
-    )        
+    )
 
     lawyers_basic = BigQueryExecuteQueryOperator(
         task_id='lawyers_basic',
@@ -587,7 +588,7 @@ with models.DAG(
             ) as adorders_active_daily on lawyers.lawyers_id = adorders_active_daily.lawyers_id
             left outer join
             (
-              select        
+              select
                   lawyer as lawyers_id
               from `lawtalk-bigquery.lawyer_management.betaadorders_active_daily`
               where parse_date('%F', beta_advertisement_active_date) = '{{ ds }}'
@@ -597,7 +598,7 @@ with models.DAG(
               and users.role in ('lawyer','lawyer-waiting')
               and lawyers.role in ('lawyer','lawyer-waiting')
             '''
-    )     
+    )
 
     lawyers_basic_snapshot = BigQueryExecuteQueryOperator(
         task_id='lawyers_basic_snapshot',
@@ -652,7 +653,7 @@ with models.DAG(
             ) as adorders_active_daily on lawyers.lawyers_id = adorders_active_daily.lawyers_id
             left outer join
             (
-              select        
+              select
                   lawyer as lawyers_id
               from `lawtalk-bigquery.lawyer_management.betaadorders_active_daily`
               where parse_date('%F', beta_advertisement_active_date) = '{{ ds }}'
@@ -662,7 +663,7 @@ with models.DAG(
               and users.role in ('lawyer','lawyer-waiting')
               and lawyers.role in ('lawyer','lawyer-waiting')
             '''
-    ) 
+    )
 
     lawyer_mgmt_segment = BigQueryExecuteQueryOperator(
         task_id='lawyer_mgmt_segment',
@@ -713,7 +714,7 @@ with models.DAG(
             ,case when label_depth_3 in ('3.탈퇴변호사','2.회원미승인변호사') then label_depth_3
             when label_depth_2 = '1.1.공개변호사' then label_depth_3
             when label_depth_3 = '1.2.2.비공개변호사_프로필작성_미완료' then label_depth_3
-            when label_depth_3 = '1.2.1.비공개변호사_일시정지' and isFullProfile is True then '1.2.1.1.비공개변호사_일시정지_프로필작성_완료' 
+            when label_depth_3 = '1.2.1.비공개변호사_일시정지' and isFullProfile is True then '1.2.1.1.비공개변호사_일시정지_프로필작성_완료'
             when label_depth_3 = '1.2.1.비공개변호사_일시정지' then '1.2.1.2.비공개변호사_일시정지_프로필작성_미완료'
             else 'to_check' end as label_depth_4
 
@@ -724,7 +725,7 @@ with models.DAG(
             *
             from labeling_depth_4
             '''
-    )            
+    )
 
     lawyer_mgmt_segment_snapshot = BigQueryExecuteQueryOperator(
         task_id='lawyer_mgmt_segment_snapshot',
@@ -775,7 +776,7 @@ with models.DAG(
             ,case when label_depth_3 in ('3.탈퇴변호사','2.회원미승인변호사') then label_depth_3
             when label_depth_2 = '1.1.공개변호사' then label_depth_3
             when label_depth_3 = '1.2.2.비공개변호사_프로필작성_미완료' then label_depth_3
-            when label_depth_3 = '1.2.1.비공개변호사_일시정지' and isFullProfile is True then '1.2.1.1.비공개변호사_일시정지_프로필작성_완료' 
+            when label_depth_3 = '1.2.1.비공개변호사_일시정지' and isFullProfile is True then '1.2.1.1.비공개변호사_일시정지_프로필작성_완료'
             when label_depth_3 = '1.2.1.비공개변호사_일시정지' then '1.2.1.2.비공개변호사_일시정지_프로필작성_미완료'
             else 'to_check' end as label_depth_4
 
@@ -796,22 +797,22 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            with ad_active_date_by_lawyer as 
+            with ad_active_date_by_lawyer as
             (
               select
                 slug
                 ,advertisement_active_date
               from
               (
-                SELECT 
+                SELECT
                   A.*
                   ,B.slug
-                FROM 
+                FROM
                 (
                   select
                     lawyer_advertisement_term_daily.* except(Date)
                     ,parse_date('%F', lawyer_advertisement_term_daily.date) as advertisement_active_date
-                  from 
+                  from
                   (
                     select
                       A.*
@@ -837,7 +838,7 @@ with models.DAG(
             , dim_date as
             (
               select
-                parse_date('%F', date) as date 
+                parse_date('%F', date) as date
               from `lawtalk-bigquery.lawyer_management.dim_date`
               group by 1
             )
@@ -889,7 +890,7 @@ with models.DAG(
                        when is_ad_lastday is False and is_ad_date is True then 'winback'
                        else null end as ad_contract_continue_status
                 from
-                ( 
+                (
                   select
                     A.*
                     ,row_number() over(partition by A.slug order by date) as day_cnt_after_ad_start
@@ -982,7 +983,7 @@ with models.DAG(
             FROM
             (
               SELECT
-               _id as adorders_id, 
+               _id as adorders_id,
                item,
                categories,
                regexp_extract(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as adCategoryId
@@ -990,7 +991,7 @@ with models.DAG(
               where date(DATETIME(createdAt,'Asia/Seoul')) <= '{{ ds }}'
               -- 6/15일 이후 수정된 쿼리
               -- SELECT
-              --   _id as adorders_id, 
+              --   _id as adorders_id,
               --   item,
               --   categories,
               --   adCategoryId
@@ -1081,10 +1082,10 @@ with models.DAG(
                   ,concat(adcategories.name,"_",adkeywords_name) as adcategory_adkeyword
                 from
                 (
-                  SELECT 
+                  SELECT
                     _id as adkeywords_id
                     ,name as adkeywords_name
-                    ,regexp_extract(adCategories, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as adCategories_id  
+                    ,regexp_extract(adCategories, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as adCategories_id
                   FROM `lawtalk-bigquery.raw.adkeywords`
                 ) as adkeywords
                 left outer join `lawtalk-bigquery.raw.adcategories` as adcategories on adkeywords.adCategories_id = adcategories._id
@@ -1135,7 +1136,7 @@ with models.DAG(
             #standardSQL
             with adorders_active as
             (
-              SELECT 
+              SELECT
                 adorders_id,
                 lawyers_id,
                 adorders_start_date,
@@ -1149,9 +1150,9 @@ with models.DAG(
 
             , ad_kind_raw_1 as
             (
-              SELECT 
+              SELECT
                 adorders_id,
-                adCategory_name as ad_name_2,  
+                adCategory_name as ad_name_2,
               FROM `lawtalk-bigquery.lawyer_management.adorders_with_location_and_keyword_array`
               where item_name in ('인기분야광고','일반분야광고','배너 변호사검색결과','상담순위 추천','프리미엄 메인','형량예측광고')
             )
@@ -1160,7 +1161,7 @@ with models.DAG(
             (
               select
                 adorders_id,
-                adlocation_name as ad_name_2 
+                adlocation_name as ad_name_2
               FROM `lawtalk-bigquery.lawyer_management.adorders_with_location_and_keyword_array`
               where item_name in ('지역광고')
             )
@@ -1169,7 +1170,7 @@ with models.DAG(
             (
               select
                 adorders_id,
-                adkeywords_name as ad_name_2 
+                adkeywords_name as ad_name_2
               FROM `lawtalk-bigquery.lawyer_management.adorders_with_location_and_keyword_array`, unnest(adkeywords_name) as adkeywords_name
               where item_name in ('다이렉트 검색','키워드광고','프리미엄 검색')
             )
@@ -1192,7 +1193,7 @@ with models.DAG(
                 C.ad_name_2,
                 A.adorders_status,
                 A.adpayments_status,
-                A.adpayments_method  
+                A.adpayments_method
               from adorders_active as A
               left outer join
               (
@@ -1206,7 +1207,7 @@ with models.DAG(
 
             , betaadorders_active as
             (
-              SELECT 
+              SELECT
                 A._id as adorders_id
                 ,A.lawyer as lawyers_id
                 ,A.betaadorders_startAt_date as adorders_start_date
@@ -1242,7 +1243,7 @@ with models.DAG(
             #standardSQL
             with questions as
             (
-              SELECT 
+              SELECT
                 _id,
                 number,
                 createdAt,
@@ -1252,29 +1253,29 @@ with models.DAG(
                 origin,
                 slug,
                 categories,
-                regexp_extract_all(categories, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as categories_array,  
+                regexp_extract_all(categories, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as categories_array,
                 keywords,
-                regexp_extract_all(keywords, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as keywords_array,  
+                regexp_extract_all(keywords, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as keywords_array,
                 -- prevCategories,
                 -- etcCategories,
                 -- prevKeywords,
                 title,
                 body,
-                -- kinRaw, 
+                -- kinRaw,
                 -- kinRemoved,
                 -- answers,
                 bestAnswer,
                 -- blindedAnswers,
-                -- dateOfanswer, 
-                -- editCount, 
-                -- exportable, 
-                -- favorites, 
-                -- isContents, 
+                -- dateOfanswer,
+                -- editCount,
+                -- exportable,
+                -- favorites,
+                -- isContents,
                 -- isDelay,
                 shareCount,
-                viewCount, 
-                -- reject, 
-                -- rejectFlag, 
+                viewCount,
+                -- reject,
+                -- rejectFlag,
               FROM `lawtalk-bigquery.raw.questions`
               where date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ ds }}'
             --     and _id in ('5a7c3d720a331c28fc999119', '563305ccc19e60483a8f06c3')
@@ -1330,7 +1331,7 @@ with models.DAG(
               ,answers_id
             FROM
             (
-              SELECT 
+              SELECT
                 _id,
                 regexp_extract_all(answers, r"ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") AS answers_id
               FROM `lawtalk-bigquery.raw.questions`
@@ -1353,7 +1354,7 @@ with models.DAG(
               ,B.adcategorie_name
             FROM
             (
-              SELECT 
+              SELECT
                 _id
                 ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
                 ,DATETIME(updatedAt, 'Asia/Seoul') as updatedAt
@@ -1395,9 +1396,9 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            SELECT 
+            SELECT
               lawyer
-              
+
               ,struct
               (
                 count(_id) as lifetime
@@ -1415,7 +1416,7 @@ with models.DAG(
                 ,count(case when recommended = true and date(createdAt) between date_trunc(date_sub('{{ ds }}', interval 1 month), month) and date_sub(date_trunc('{{ ds }}', month), interval 1 day) then _id else null end) as last_month
                 ,count(case when recommended = true and date(createdAt) >= date_trunc('{{ ds }}', month) then _id else null end) as mtd
               ) as answers_recommended_cnt
-              
+
               ,struct
               (
                 count(_id) as lifetime
@@ -1424,7 +1425,7 @@ with models.DAG(
                 ,count(case when is_useful = true and date(createdAt) between date_trunc(date_sub('{{ ds }}', interval 1 month), month) and date_sub(date_trunc('{{ ds }}', month), interval 1 day) then _id else null end) as last_month
                 ,count(case when is_useful = true and date(createdAt) >= date_trunc('{{ ds }}', month) then _id else null end) as mtd
               ) as answers_useful_cnt
-              
+
             FROM `lawtalk-bigquery.lawyer_management.answers_x`
             where question_origin not in ('naver-kin')
             group by 1
@@ -1440,7 +1441,7 @@ with models.DAG(
         sql='''
             #standardSQL
             -- admin상에서 callevent 잡을 때 utc를 한국 시간으로 변환하지 않고 그대로 집계하고 있음.
-            SELECT 
+            SELECT
               _id
               ,type
               ,caller
@@ -1471,12 +1472,12 @@ with models.DAG(
             #standardSQL
             select
               lawyer
-              
+
               ,min(date(startedAt)) as first_call_date
               ,max(date(startedAt)) as last_call_date
               ,date_diff('{{ ds }}', min(date(startedAt)), day) as days_since_first_call_date
               ,date_diff('{{ ds }}', max(date(startedAt)), day) as days_since_last_call_date
-              
+
               ,struct
               (
                 count(_id) as lifetime
@@ -1485,7 +1486,7 @@ with models.DAG(
                 ,count(case when date(startedAt) between date_trunc(date_sub('{{ ds }}', interval 1 month), month) and date_sub(date_trunc('{{ ds }}', month), interval 1 day) then _id else null end) as last_month
                 ,count(case when date(startedAt) >= date_trunc('{{ ds }}', month) then _id else null end) as mtd
               ) as call_cnt
-              
+
             from `lawtalk-bigquery.lawyer_management.callevents_x`
             where 1=1
               and type = 'profile'
@@ -1501,7 +1502,7 @@ with models.DAG(
       destination_dataset_table='lawtalk-bigquery.lawyer_management.adviceschedules_x',
       write_disposition = 'WRITE_TRUNCATE',
       sql='''
-          SELECT 
+          SELECT
             _id,
             DATETIME(createdAt, 'Asia/Seoul') as createdAt,
             DATETIME(updatedAt, 'Asia/Seoul') as updatedAt,
@@ -1531,7 +1532,7 @@ with models.DAG(
             #standardSQL
             with advice as
             (
-              SELECT 
+              SELECT
                 _id
                 ,DATETIME(actionTime, 'Asia/Seoul') as actionTime
                 ,DATETIME(createdAt, 'Asia/Seoul') as createdAt
@@ -1557,7 +1558,7 @@ with models.DAG(
                 ,regexp_extract(review, r"'recommendation': ([a-zA-Z]+)") as review_recommendation
                 --,regexp_extract(review, r"'title': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~\\]+)'") as review_title
                 --,regexp_extract(review, r"'body': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~\\]+)'") as review_body
-              FROM `lawtalk-bigquery.raw.advice` as A              
+              FROM `lawtalk-bigquery.raw.advice` as A
               where date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ ds }}'
             )
 
@@ -1613,7 +1614,7 @@ with models.DAG(
               SELECT
                 _id,
                 row_number() over(partition by advice order by updatedAt desc) as no_by_advice,
-                number, 
+                number,
                 DATETIME(createdAt, 'Asia/Seoul') as createdAt,
                 DATETIME(updatedAt, 'Asia/Seoul') as updatedAt,
                 DATETIME(requestedAt, 'Asia/Seoul') as requestedAt,
@@ -1637,7 +1638,7 @@ with models.DAG(
                 regexp_extract(metadata, r"'extraInfo': '([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)'") as metadata_extraInfo,
               FROM `lawtalk-bigquery.raw.advicetransactions`
               where 1=1
-                and date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ ds }}'  
+                and date(DATETIME(createdAt, 'Asia/Seoul')) <= '{{ ds }}'
             )
 
             , advicetransactions_x as
@@ -1702,7 +1703,7 @@ with models.DAG(
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
             #standardSQL
-            -- 광고가 aditem은 같지만 start end date가 충첩되는게 있을 수가 있다!! 
+            -- 광고가 aditem은 같지만 start end date가 충첩되는게 있을 수가 있다!!
             with x as
             (
               SELECT
@@ -1886,7 +1887,7 @@ with models.DAG(
                 coalesce(SAFE_DIVIDE((advice_cnt_per_active_lawyer - min(advice_cnt_per_active_lawyer) over(partition by start_date)),(max(advice_cnt_per_active_lawyer) over(partition by start_date) - min(advice_cnt_per_active_lawyer) over(partition by start_date))),1) as advice_cnt_per_active_lawyer_normalize,
               from
               (
-                select 
+                select
                   start_date,
                   advicetransactions_contextAdditional_split as category,
                   sum(an_advice_divided_by_context_cnt) as advice_cnt,
@@ -1920,7 +1921,7 @@ with models.DAG(
                     start_date,
                     advicetransactions_contextAdditional_split as category,
                     slug as lawyer,
-                    sum(an_advice_divided_by_context_cnt) as advice_cnt 
+                    sum(an_advice_divided_by_context_cnt) as advice_cnt
                   from calulating_an_advice_divided_by_context_cnt
                   group by 1,2,3
                 )
@@ -2004,7 +2005,7 @@ with models.DAG(
                 coalesce(SAFE_DIVIDE((advice_cnt_per_active_lawyer - min(advice_cnt_per_active_lawyer) over(partition by start_date)),(max(advice_cnt_per_active_lawyer) over(partition by start_date) - min(advice_cnt_per_active_lawyer) over(partition by start_date))),1) as advice_cnt_per_active_lawyer_normalize,
               from
               (
-                select 
+                select
                   start_date,
                   advicetransactions_contextAdditional_split as category,
                   sum(an_advice_divided_by_context_cnt) as advice_cnt,
@@ -2038,7 +2039,7 @@ with models.DAG(
                     start_date,
                     advicetransactions_contextAdditional_split as category,
                     slug as lawyer,
-                    sum(an_advice_divided_by_context_cnt) as advice_cnt 
+                    sum(an_advice_divided_by_context_cnt) as advice_cnt
                   from calulating_an_advice_divided_by_context_cnt
                   group by 1,2,3
                 )
@@ -2064,7 +2065,7 @@ with models.DAG(
         destination_dataset_table='lawtalk-bigquery.lawyer_management.adproduct_key_performance_union',
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
-            SELECT 
+            SELECT
               '분야광고' as adproduct,
               *
             FROM `lawtalk-bigquery.lawyer_management.adproduct_key_performance_category`
@@ -2121,8 +2122,8 @@ with models.DAG(
               ), unnest(context) as advicetransactions_contextAdditional_split
             )
 
- 
-           
+
+
             select
               *,
               row_number() over(partition by start_date, category order by advice_cnt asc, lawyer asc) as lawyer_cnt_accum,
@@ -2138,7 +2139,7 @@ with models.DAG(
                 start_date,
                 advicetransactions_contextAdditional_split as category,
                 slug as lawyer,
-                sum(an_advice_divided_by_context_cnt) as advice_cnt 
+                sum(an_advice_divided_by_context_cnt) as advice_cnt
               from calulating_an_advice_divided_by_context_cnt
               group by 1,2,3
             )
@@ -2205,7 +2206,7 @@ with models.DAG(
                 start_date,
                 advicetransactions_contextAdditional_split as category,
                 slug as lawyer,
-                sum(an_advice_divided_by_context_cnt) as advice_cnt 
+                sum(an_advice_divided_by_context_cnt) as advice_cnt
               from calulating_an_advice_divided_by_context_cnt
               group by 1,2,3
             )
@@ -2219,7 +2220,7 @@ with models.DAG(
         destination_dataset_table='lawtalk-bigquery.lawyer_management.adproduct_lorenzcurve_union',
         write_disposition = 'WRITE_TRUNCATE',
         sql='''
-            SELECT 
+            SELECT
               '분야광고' as adproduct,
               *
             FROM `lawtalk-bigquery.lawyer_management.adproduct_lorenzcurve_category`
@@ -2250,7 +2251,7 @@ with models.DAG(
                 _id,
                 name as category_name
               from `lawtalk-bigquery.raw.adcategories`
-            ) as A 
+            ) as A
             left outer join
             (
               select
@@ -2697,7 +2698,7 @@ with models.DAG(
     #           ,count(case when status = 'cancel' and parse_date('%F', dayString) between date_trunc(date_sub('{{ ds }}', interval 1 month), month) and date_sub(date_trunc('{{ ds }}', month), interval 1 day) then _id else null end) as last_month
     #           ,count(case when status = 'cancel' and parse_date('%F', dayString) >= date_trunc('{{ ds }}', month) then _id else null end) as mtd
     #           ) as advice_cnt_cancel
-              
+
     #           ,struct
     #           (
     #           count(case when status in ('reserved','reservation') then _id else null end) as lifetime
@@ -2723,8 +2724,8 @@ with models.DAG(
     #           ,count(case when wish_accept_case is true and parse_date('%F', dayString) >= date_sub('{{ ds }}', interval 30 day) then _id else null end) as last_30d
     #           ,count(case when wish_accept_case is true and parse_date('%F', dayString) between date_trunc(date_sub('{{ ds }}', interval 1 month), month) and date_sub(date_trunc('{{ ds }}', month), interval 1 day) then _id else null end) as last_month
     #           ,count(case when wish_accept_case is true and parse_date('%F', dayString) >= date_trunc('{{ ds }}', month) then _id else null end) as mtd
-    #           ) as advice_cnt_wish_accept_case          
-              
+    #           ) as advice_cnt_wish_accept_case
+
     #         FROM `lawyer_management.advice_x_with_transactions_page`
     #         group by 1
     #         '''
@@ -2732,10 +2733,10 @@ with models.DAG(
 
 
     # end = dummy.DummyOperator(task_id='end')
-  
+
 ######################################################################################################
-    start 
-    start>>check_bm_activities
+    start
+    #start>>check_bm_activities
     start>>users_x_snapshot>>users_x
     start>>lawyers_x_snapshot>>lawyers_x
     start>>adorders_history>>adorders_pausehistory>>adorders_active_daily
@@ -2748,10 +2749,10 @@ with models.DAG(
     start>>post_x
     start>>category_with_matched_lawyer_profile_main_field
 
-    
+
     [lawyers_x,users_x,adorders_active_daily,betaadorders_active_daily]>>lawyers_basic>>lawyers_basic_snapshot>>lawyer_mgmt_segment>>lawyer_mgmt_segment_snapshot
     [adorders_history,lawyer_mgmt_segment]>>adorders_history_with_ad_contract_categroies>>adorders_history_with_status_seg_info
-    [adorders_active_daily,adorders_with_location_and_keyword_array,betaadorders_active_daily]>>adorders_active_with_ad_kind    
+    [adorders_active_daily,adorders_with_location_and_keyword_array,betaadorders_active_daily]>>adorders_active_with_ad_kind
     [adorders_active_with_ad_kind,advice_x_with_transactions_page,lawyer_mgmt_segment]>>advice_x_with_transactions_page_and_matched_adorders_info
     advice_x_with_transactions_page_and_matched_adorders_info>>[adproduct_key_performance_category,adproduct_key_performance_area]>>adproduct_key_performance_union
     advice_x_with_transactions_page_and_matched_adorders_info>>[adproduct_lorenzcurve_category,adproduct_lorenzcurve_area]>>adproduct_lorenzcurve_union
@@ -2759,5 +2760,3 @@ with models.DAG(
 
 
     # [check_bm_activities,users_x,lawyers_x,adorders_active_daily,adorders_item_adCategory,betaadorders_active_daily,lawyers_advice_cnt_history_by_status,lawyers_050_call_cnt_history,lawyer_answers_cnt_history,stat_advicetransactions_cnt_by_context_daily,stat_advicetransactions_cnt_by_context_and_lawyer_daily,lawyer_mgmt_segment]>>end
-
-

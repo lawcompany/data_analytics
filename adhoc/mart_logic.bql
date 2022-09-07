@@ -30,7 +30,7 @@ with lawyer as
          , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
       from `lawtalk-bigquery.raw.adorders`
      where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
-      -- and date(createdAt,'Asia/Seoul') between date('2022-06-16')-15 and
+       and date(createdAt,'Asia/Seoul') between date('2022-09-06')-14 and date('2022-09-06')
 )
 , adorders_pause as
 ( -- pause_start_dt와 end_date를 KST datetime으로 형변환하여 다시 array로 만든다.
@@ -109,6 +109,23 @@ with lawyer as
       from `lawtalk-bigquery.raw.adpayments`
          , unnest(regexp_extract_all(orders, r"ObjectId\('(.*?)'\)")) as order_id
 )
+, betaadorders_base as
+(
+    select date(createdAt,'Asia/Seoul') as b_date
+         , _id as order_id
+         , lawyer as lawyer_id
+         , adCategory as category_id
+         , category as category_name
+         , price
+         , status as order_status
+         , datetime(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_start_dt
+         , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_end_dt
+         , datetime(createdAt,'Asia/Seoul') as order_crt_dt
+         , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
+      from `lawtalk-bigquery.raw.betaadorders` a
+     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+       and date(createdAt,'Asia/Seoul') between date('2022-09-06')-14 and date('2022-09-06')
+)
 -- 각 정보들 join하여 최종 데이터 구성
 select date(a.order_crt_dt) as b_date
      , b.pay_id
@@ -159,6 +176,45 @@ select date(a.order_crt_dt) as b_date
     on a.order_id = e.order_id
   left join adorders_pause f
     on a.order_id = f.order_id
+ union all
+select a.b_date
+     , null as pay_id
+     , a.order_id
+     , a.lawyer_id
+     , c.slug
+     , c.lawyer_name
+     , c.manager
+     , 'plus' as kind
+     , null as location_id
+     , null as location_name
+     , null as location_group_id
+     , null as location_group_name
+     , null as location_category_id
+     , null as location_category_name
+     , a.category_id
+     , a.category_name
+     , null as pay_status
+     , null as tot_fixed_fee
+     , null as tot_origin_fee
+     , null as subscription_id
+     , null as coupon_id
+     , null as pay_method
+     , null as pay_req_dt
+     , null as pay_crt_dt
+     , null as pay_upd_dt
+     , null as pay_canc_dt
+     , a.price
+     , a.order_status
+     , a.ad_start_dt
+     , a.ad_end_dt
+     , null as pause_start_dt
+     , null as pause_end_dt
+     , null as is_auto_extend
+     , a.order_crt_dt
+     , a.order_upd_dt
+  from betaadorders_base a
+  left join lawyer c
+    on a.lawyer_id = c.lawyer_id
 ;
 
 
@@ -296,8 +352,8 @@ select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
      , a.counsel_crt_dt
      , a.counsel_exc_dt
      , a.counsel_upd_dt
-     , a.category_id
-     , a.category_name
+     , case when a.counsel_id is not null and a.lawyer_survey_id is null then 'N/A' else a.category_id end as category_id
+     , case when a.counsel_id is not null and a.lawyer_survey_id is null then 'N/A' else a.category_name end as category_name
      , a.lawyer_survey_id
      , a.user_review_id
      , a.user_review_dt
