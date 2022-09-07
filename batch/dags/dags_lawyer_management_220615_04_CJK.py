@@ -38,7 +38,7 @@ with models.DAG(
         default_args=default_args) as dag:
 
     start = dummy.DummyOperator(task_id='start')
-'''
+    '''
     check_bm_activities = BigQueryTableExistenceSensor(
         #빅쿼리 예약된 쿼리로 만들어진 테이블
         task_id = 'check_bm_activities',
@@ -47,7 +47,7 @@ with models.DAG(
         dataset_id= 'lawyer_management_bm_activities',
         table_id = '0_total_{{ ds_nodash }}',
     )
-'''
+    '''
 
     # start>>check_bm_activities
 
