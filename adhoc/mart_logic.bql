@@ -19,13 +19,13 @@ with lawyer as
          , regexp_extract_all(adLocations, r"'locationId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as location_id
          , regexp_extract_all(categories, r"'adCategoryId': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as category_id
          , coupon as coupon_id
-         , price
+         , safe_cast(price as numeric) as price
          , status as order_status
          , datetime(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_start_dt
          , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_end_dt
          , regexp_extract_all(pauseHistory, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_start_dt
          , regexp_extract_all(pauseHistory, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") pause_end_dt
-         , regexp_extract(autoExtendTerm,r"'status': \'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'") as is_auto_extend
+         , case when regexp_extract(autoExtendTerm,r"'status': \'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'")='on' then 1 else 0 end as is_auto_extend
          , datetime(createdAt,'Asia/Seoul') as order_crt_dt
          , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
       from `lawtalk-bigquery.raw.adorders`
@@ -96,8 +96,8 @@ with lawyer as
 ( -- adpayments에서 필요한 정보만 간추려 가져온다.
     select _id as pay_id
          , status as pay_status
-         , fixedFee as tot_fixed_fee
-         , originFee as tot_origin_fee
+         , safe_cast(fixedFee as numeric) as tot_fixed_fee
+         , safe_cast(originFee as numeric) as tot_origin_fee
          , adSubscription as subscription_id
          , coupon as coupon_id
          , method as pay_method
@@ -116,7 +116,7 @@ with lawyer as
          , lawyer as lawyer_id
          , adCategory as category_id
          , category as category_name
-         , price
+         , safe_cast(price as numeric) as price
          , status as order_status
          , datetime(parse_timestamp('%Y, %m, %e, %H, %M', regexp_extract(term, r"'startAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_start_dt
          , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(term, r"'endAt': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul') as ad_end_dt
@@ -261,6 +261,7 @@ with lawyer as
          , regexp_extract(a.review, r"'rate': (\d+)") as user_review_rate
          , regexp_extract(a.review, r"'title': '(.*?)'") as user_review_title
          , regexp_extract(a.review, r"'body': '(.*?)'") as user_review_body
+         , regexp_extract(cancelInfo, r"'adviceCancelCode': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as counsel_cancel_code
       from `lawtalk-bigquery.raw.advice` a
       left join `lawtalk-bigquery.raw.adcategories` b
         on a.adCategory = b._id
@@ -285,7 +286,7 @@ with lawyer as
                 else a.context
            end as context
          , a.extra_info
-         , coalesce(a.context_additional, b.name, c.name) as context_additional
+         , coalesce(a.context_additional, b.name, c.name, 'N/A') as context_additional
          , a.adid
          , a.pay_req_dt
          , a.pay_crt_dt
@@ -299,8 +300,8 @@ with lawyer as
                  , lawyer as lawyer_id
                  , status as pay_status
                  , method as pay_method
-                 , regexp_extract(paid, r"'price': (\d+)") as price
-                 , originFee as origin_fee
+                 , safe_cast(regexp_extract(paid, r"'price': (\d+)") as numeric) as price
+                 , safe_cast(originFee as numeric) as origin_fee
                  , regexp_extract(raw, r"'goodname': '(.*?)'") as good_name
                  , coupon as coupon_id
                  , regexp_extract(metadata, r"'ua': '(.*?)'") as device
@@ -316,9 +317,9 @@ with lawyer as
              where date(a.createdAt,'Asia/Seoul') between date('2022-09-01')-6 and date('2022-09-01')
           ) a
       left join `lawtalk-bigquery.raw.adcategories` b
-        on a.context_additional = b.name
+        on coalesce(a.context_additional,a.extra_info) = b.name
       left join `lawtalk-bigquery.raw.adlocationgroups` c
-        on a.context_additional = c.name
+        on coalesce(a.context_additional,a.extra_info) = c.name
 )
 select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
      , coalesce(a.counsel_id,b.counsel_id) as counsel_id
@@ -349,6 +350,8 @@ select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
      , b.pay_canc_dt
      , a.body
      , a.counsel_status
+     , a.counsel_cancel_code
+     , e.description as counsel_cancel_reason
      , a.counsel_crt_dt
      , a.counsel_exc_dt
      , a.counsel_upd_dt
@@ -367,6 +370,288 @@ select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
     on coalesce(b.lawyer_id,a.lawyer_id,'') = c.lawyer_id
   left join user d
     on coalesce(b.user_id,a.user_id,'') = d.user_id
+  left join `lawtalk-bigquery.raw.advicecancelcodes` e
+    on a.counsel_cancel_code = e._id
+;
+
+-- lt_s_lawyer_ads
+with pause_lawyer as
+(
+    select distinct lawyer_id as lawyer_id
+      from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
+         , unnest(pause_start_dt) as pause_start_dt with offset as pos1
+         , unnest(pause_end_dt) as pause_end_dt with offset as pos2
+     where pos1 = pos2
+       and date('2022-09-10') between date(pause_start_dt) and date(pause_end_dt)
+)
+select date('2022-09-10') as b_date
+     , a.lawyer_id
+     , a.slug
+     , a.lawyer_name
+     , a.manager
+     , a.kind
+     , case when a.kind='location' then a.location_group_id else a.category_id end as ad_id
+     , case when a.kind='location' then a.location_group_name else a.category_name end as ad_name
+     , case when c._id is not null then 1 else 0 end as is_free
+  from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
+  left join pause_lawyer b
+    on a.lawyer_id = b.lawyer_id
+  left join
+     (
+        select distinct _id, campaign
+          from `lawtalk-bigquery.raw.adcoupons`
+         where campaign = '분야프로모션_분야한개무료광고_자동생성'
+     ) c
+    on a.coupon_id = c._id
+ where (a.kind = 'plus' or a.pay_status = 'paid')
+   and a.order_status = 'apply'
+   and date('2022-09-10') between date(a.ad_start_dt) and date(a.ad_end_dt)
+   and b.lawyer_id is null
+;
+
+
+-- lt_s_lawyer_info
+with all_lawyer as
+(
+    select distinct a.*
+         , b.adLocationGroup as address_location_id
+         , c.name as address_location_name
+      from
+      (
+        select b._id as lawyer_id
+             , b.name as lawyer_name
+             , case when b.slug = '5e314482c781c20602690b79' and b._id = '5e314482c781c20602690b79' then '탈퇴한 변호사'
+                    when b.slug = '5e314482c781c20602690b79' and b._id = '616d0c91b78909e152c36e71' then '미활동 변호사'
+                    when b.slug like '%탈퇴한%' then concat(b.slug,'(탈퇴보류)')
+                    else slug
+               end as slug
+             , b.manager
+             , b.role as lawyer_role
+             , a.role as user_role
+             , case when b.role = 'lawyer' and a.role = 'lawyer' then 1 else 0 end as is_approved
+             , case when b.role = 'lawyer-waiting' and a.role = 'lawyer-waiting' then 1 else 0 end as is_waiting
+             , b.flag
+             , b.writeRate
+             , lower(regexp_extract(b.flag, r"'activation': (\w+)")) as act_char
+             , case when lower(regexp_extract(b.flag, r"'activation': (\w+)")) = 'true' then 1 else 0 end as is_act
+             , lower(regexp_extract(b.flag, r"'holdWithdrawal': (\w+)")) as hold_char
+             , case when lower(regexp_extract(b.flag, r"'holdWithdrawal': (\w+)")) = 'true' then 1 else 0 end as is_hold
+             , safe_cast(regexp_extract(b.writeRate, r"'percentage': (\w+)") as int64) as full_num
+             , case when safe_cast(regexp_extract(b.writeRate, r"'percentage': (\w+)") as int64) >= 100 then 1 else 0 end as is_full
+             , b.address
+             , regexp_extract(b.address, r"\'level2\': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as location2
+             , regexp_extract(b.address, r"\'level1\': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as location1
+             , safe_cast(regexp_extract(b.adviceFee, r"'phone': (\w+)") as numeric) as counsel_phone_fee
+             , safe_cast(regexp_extract(b.adviceFee, r"'video': (\w+)") as numeric) as counsel_video_fee
+             , safe_cast(regexp_extract(b.adviceFee, r"'visiting': (\w+)") as numeric) as counsel_visiting_fee
+             , date(birth,'Asia/Seoul') as birth
+             , company
+             , sex
+             , regexp_extract(b.examination, r"'body': '(.*?)'") as exam
+             , regexp_extract(b.examination, r"'year': '(.*?)'") as exam_round
+             , regexp_extract(b.examination, r"'trainingInstitute': '(.*?)'") as exam_generation
+             , safe_cast(examYear as int64) as exam_year
+             , datetime(b.createdAt,'Asia/Seoul') as crt_dt
+          from `lawtalk-bigquery.raw.lawyers` b
+          left join
+            (
+                select lawyer, role
+                from `lawtalk-bigquery.raw.users`
+                where lawyer is not null
+                and role in ('lawyer','lawyer-waiting')
+            ) a
+           on b._id = a.lawyer
+          and b.role = a.role
+       -- and b.role in ('lawyer','lawyer-waiting')
+       -- where a.is_act = 1 and a.is_hold = 0 and a.is_full = 1
+        ) a
+     left join `lawtalk-bigquery.raw.adlocations` b
+       on a.location2 = b.address
+       or a.location1 = b.address
+     left join `lawtalk-bigquery.raw.adlocationgroups` c
+       on b.adLocationGroup = c._id
+)
+, ads_lawyer_info as
+(
+  select a.lawyer_id
+       , a.lawyer_name
+       , count(distinct(case when a.kind = 'category' then a.ad_id end)) as category_ad_cnt
+       , count(distinct(case when a.kind = 'location' then a.ad_id end)) as location_ad_cnt
+       , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
+       , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
+    from `lawtalk-bigquery.mart.lt_s_lawyer_ads` a
+   group by a.lawyer_id
+          , a.lawyer_name
+)
+, yesterday_lawyer_info as
+(
+    select *
+      from `lawtalk-bigquery.mart.lt_s_lawyer_info`
+     where b_date = date('2022-09-10','Asia/Seoul') - 1
+)
+, acc_review_cnt as
+(
+    select lawyer_id
+         , count(distinct counsel_id) as acc_review_cnt
+      from `lawtalk-bigquery.mart.lt_r_user_pay_counsel`
+     where user_review_dt is not null
+     group by lawyer_id
+)
+, acc_qna_cnt as
+(
+    select lawyer as lawyer_id
+         , count(distinct _id) as acc_qna_cnt
+      from `lawtalk-bigquery.raw.answers`
+     group by lawyer
+)
+, acc_post_cnt as
+(
+    select lawyer as lawyer_id
+         , count(distinct _id) as acc_post_cnt
+      from `lawtalk-bigquery.raw.posts`
+     group by lawyer
+)
+, acc_legaltip_cnt as
+(
+    select lawyer as lawyer_id
+         , count(distinct _id) as acc_legaltip_cnt
+      from `lawtalk-bigquery.raw.videos`
+     group by lawyer
+)
+, acc_counsel_cnt as
+(
+    select lawyer_id
+         , count(distinct counsel_id) as acc_counsel_cnt
+      from `lawtalk-bigquery.mart.lt_r_user_pay_counsel`
+     where pay_status = 'paid'
+     group by lawyer_id
+)
+, acc_050call_cnt as
+(
+    select lawyer as lawyer_id
+         , count(distinct _id) as acc_050call_cnt
+      from `lawtalk-bigquery.raw.callevents`
+     where duration >= 60
+     group by lawyer
+)
+select date('2022-09-10') as b_date
+     , coalesce(a.lawyer_id, b.lawyer_id) as lawyer_id
+     , coalesce(a.slug, b.slug) as slug
+     , coalesce(a.lawyer_name, b.lawyer_name) as lawyer_name
+     , coalesce(a.manager, b.manager) as manager
+     , coalesce(a.is_approved, b.is_approved) as is_approved
+     , coalesce(a.is_opened, b.is_opened) as is_opened
+     , coalesce(a.is_ad, b.is_ad) as is_ad
+     , coalesce(a.paid_kind, b.paid_kind) as paid_kind
+     , coalesce(a.is_paused, b.is_paused) as is_paused
+     , coalesce(a.is_fully_profile, b.is_fully_profile) as is_fully_profile
+     , case when b.lawyer_id is not null and a.lawyer_id is null then 1 else 0 end as is_resting -- 전일자엔 변호사 정보가 있는데 당일자엔 없다면 휴면처리가 되어 센티널로 넘어갔다고 볼 수 있음
+     , coalesce(a.is_category_ad, b.is_category_ad) as is_category_ad
+     , coalesce(a.is_location_ad, b.is_location_ad) as is_location_ad
+     , coalesce(a.is_plus_ad, b.is_plus_ad) as is_plus_ad
+     , coalesce(a.category_ad_cnt, b.category_ad_cnt) as category_ad_cnt
+     , coalesce(a.location_ad_cnt, b.location_ad_cnt) as location_ad_cnt
+     , coalesce(a.plus_ad_cnt, b.plus_ad_cnt) as plus_ad_cnt
+     , coalesce(a.address_location_id, b.address_location_id) as address_location_id
+     , coalesce(a.address_location_name, b.address_location_name) as address_location_name
+     , coalesce(a.counsel_phone_fee, b.counsel_phone_fee) as counsel_phone_fee
+     , coalesce(a.counsel_video_fee, b.counsel_video_fee) as counsel_video_fee
+     , coalesce(a.counsel_visiting_fee, b.counsel_visiting_fee) as counsel_visiting_fee
+     , coalesce(a.birth, b.birth) as birth
+     , coalesce(a.company, b.company) as company
+     , coalesce(a.sex, b.sex) as sex
+     , coalesce(a.exam, b.exam) as exam
+     , coalesce(a.exam_round, b.exam_round) as exam_round
+     , coalesce(a.exam_generation, b.exam_generation) as exam_generation
+     , coalesce(a.exam_year, b.exam_year) as exam_year
+     , coalesce(a.acc_review_cnt, b.acc_review_cnt) as acc_review_cnt
+     , coalesce(a.acc_qna_cnt, b.acc_qna_cnt) as acc_qna_cnt
+     , coalesce(a.acc_post_cnt, b.acc_post_cnt) as acc_post_cnt
+     , coalesce(a.acc_legaltip_cnt, b.acc_legaltip_cnt) as acc_legaltip_cnt
+     , coalesce(a.acc_counsel_cnt, b.acc_counsel_cnt) as acc_counsel_cnt
+     , coalesce(a.acc_050call_cnt, b.acc_050call_cnt) as acc_050call_cnt
+     , coalesce(a.crt_dt, b.crt_dt) as crt_dt
+  from
+  (
+    select a.lawyer_id
+         , a.slug
+         , a.lawyer_name
+         , a.manager
+         , case when a.is_approved=1 then 1 -- 회원 승인
+                when a.is_waiting=1 then 0 -- 회원 미승인
+                else null -- 비정상 데이터
+           end as is_approved
+         , case when a.is_approved=1 and a.is_act = 1 and a.is_hold = 0 and a.is_full = 1 then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_opened -- 공개/비공개 여부
+         , case when a.is_approved=1 and b.lawyer_id is not null then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_ad -- 광고/비광고 여부
+         , case when a.is_approved=1 and b.category_ad_cnt+b.location_ad_cnt=1 and b.free_category_ad_cnt=1 and b.plus_ad_cnt=0 then 'free'
+                when a.is_approved=1 and b.lawyer_id is not null then 'paid'
+           end as paid_kind
+         , case when a.is_approved=1 and (a.is_act = 0 or a.is_hold = 1) then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_paused -- 일시정지 여부
+         , case when a.is_approved=1 and a.is_full = 1 then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_fully_profile -- 프로필 100% 작성 여부
+         , case when a.is_approved=1 and b.category_ad_cnt>0 then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_category_ad -- 분야광고주 여부
+         , case when a.is_approved=1 and b.location_ad_cnt>0 then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_location_ad -- 지역광고주 여부
+         , case when a.is_approved=1 and b.plus_ad_cnt>0 then 1
+                when a.is_approved=0 then null -- 비정상 데이터
+                else 0
+           end as is_plus_ad -- 플러스광고주 여부
+         , b.category_ad_cnt
+         , b.location_ad_cnt
+         , b.plus_ad_cnt
+         , a.address_location_id
+         , a.address_location_name
+         , a.counsel_phone_fee
+         , a.counsel_video_fee
+         , a.counsel_visiting_fee
+         , a.birth
+         , a.company
+         , a.sex
+         , a.exam
+         , a.exam_round
+         , a.exam_generation
+         , a.exam_year
+         , c.acc_review_cnt
+         , d.acc_qna_cnt
+         , e.acc_post_cnt
+         , f.acc_legaltip_cnt
+         , g.acc_counsel_cnt
+         , h.acc_050call_cnt
+         , a.crt_dt
+      from all_lawyer a
+      left join ads_lawyer_info b
+        on a.lawyer_id = b.lawyer_id
+      left join acc_review_cnt c
+        on a.lawyer_id = c.lawyer_id
+      left join acc_qna_cnt d
+        on a.lawyer_id = d.lawyer_id
+      left join acc_post_cnt e
+        on a.lawyer_id = e.lawyer_id
+      left join acc_legaltip_cnt f
+        on a.lawyer_id = f.lawyer_id
+      left join acc_counsel_cnt g
+        on a.lawyer_id = g.lawyer_id
+      left join acc_050call_cnt h
+        on a.lawyer_id = h.lawyer_id
+  ) a
+  full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
+    on a.lawyer_id = b.lawyer_id
 ;
 
 
