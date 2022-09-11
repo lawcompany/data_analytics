@@ -217,6 +217,41 @@ select a.b_date
     on a.lawyer_id = c.lawyer_id
 ;
 
+-- lt_s_lawyer_ads
+with pause_lawyer as
+(
+    select distinct lawyer_id as lawyer_id
+      from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
+         , unnest(pause_start_dt) as pause_start_dt with offset as pos1
+         , unnest(pause_end_dt) as pause_end_dt with offset as pos2
+     where pos1 = pos2
+       and date('2022-09-10') between date(pause_start_dt) and date(pause_end_dt)
+)
+select date('2022-09-10') as b_date
+     , a.lawyer_id
+     , a.slug
+     , a.lawyer_name
+     , a.manager
+     , a.kind
+     , case when a.kind='location' then a.location_group_id else a.category_id end as ad_id
+     , case when a.kind='location' then a.location_group_name else a.category_name end as ad_name
+     , case when c._id is not null then 1 else 0 end as is_free
+  from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
+  left join pause_lawyer b
+    on a.lawyer_id = b.lawyer_id
+  left join
+     (
+        select distinct _id, campaign
+          from `lawtalk-bigquery.raw.adcoupons`
+         where campaign = '분야프로모션_분야한개무료광고_자동생성'
+     ) c
+    on a.coupon_id = c._id
+ where (a.kind = 'plus' or a.pay_status = 'paid')
+   and a.order_status = 'apply'
+   and date('2022-09-10') between date(a.ad_start_dt) and date(a.ad_end_dt)
+   and b.lawyer_id is null
+;
+
 
 -- lt_r_user_pay_counsel
 with lawyer as
@@ -374,41 +409,75 @@ select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
     on a.counsel_cancel_code = e._id
 ;
 
--- lt_s_lawyer_ads
-with pause_lawyer as
-(
-    select distinct lawyer_id as lawyer_id
-      from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
-         , unnest(pause_start_dt) as pause_start_dt with offset as pos1
-         , unnest(pause_end_dt) as pause_end_dt with offset as pos2
-     where pos1 = pos2
-       and date('2022-09-10') between date(pause_start_dt) and date(pause_end_dt)
-)
-select date('2022-09-10') as b_date
+-- lt_w_lawyer_counsel
+select a.b_date
      , a.lawyer_id
      , a.slug
      , a.lawyer_name
      , a.manager
-     , a.kind
-     , case when a.kind='location' then a.location_group_id else a.category_id end as ad_id
-     , case when a.kind='location' then a.location_group_name else a.category_name end as ad_name
-     , case when c._id is not null then 1 else 0 end as is_free
-  from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
-  left join pause_lawyer b
-    on a.lawyer_id = b.lawyer_id
-  left join
-     (
-        select distinct _id, campaign
-          from `lawtalk-bigquery.raw.adcoupons`
-         where campaign = '분야프로모션_분야한개무료광고_자동생성'
-     ) c
-    on a.coupon_id = c._id
- where (a.kind = 'plus' or a.pay_status = 'paid')
-   and a.order_status = 'apply'
-   and date('2022-09-10') between date(a.ad_start_dt) and date(a.ad_end_dt)
-   and b.lawyer_id is null
+     , 'keyword' as cat_mapping_standard
+     , coalesce(b._id, c._id, 'N/A') as category_id
+     , a.cat as category_name
+     , sum(case when a.kind='phone' then a.counsel_cnt end) as phone_cnt
+     , sum(case when a.kind='phone' then a.counsel_price end) as phone_price
+     , sum(case when a.kind='video' then a.counsel_cnt end) as video_cnt
+     , sum(case when a.kind='video' then a.counsel_price end) as video_price
+     , sum(case when a.kind='visiting' then a.counsel_cnt end) as visiting_cnt
+     , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
+  from
+      (
+        select a.b_date
+             , a.lawyer_id
+             , a.slug
+             , a.lawyer_name
+             , a.manager
+             , cat
+             , a.counsel_id
+             , a.kind
+             , safe_cast(1/array_length(split(a.context_additional, ',')) as numeric) as counsel_cnt
+             , safe_cast(a.origin_fee * (1/array_length(split(a.context_additional, ','))) as numeric) as counsel_price
+          from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+             , unnest(split(a.context_additional, ',')) as cat
+         where b_date >='2022-06-16'
+           and counsel_status = 'complete'
+      ) a
+  left join `lawtalk-bigquery.raw.adcategories` b
+    on a.cat = b.name
+  left join `lawtalk-bigquery.raw.adlocationgroups` c
+    on a.cat = c.name
+ group by a.b_date
+        , a.lawyer_id
+        , a.slug
+        , a.lawyer_name
+        , a.manager
+        , coalesce(b._id, c._id, 'N/A')
+        , a.cat
+union all
+select a.b_date
+     , a.lawyer_id
+     , a.slug
+     , a.lawyer_name
+     , a.manager
+     , 'category' as cat_mapping_standard
+     , a.category_id
+     , a.category_name
+     , sum(case when a.kind='phone' then 1 end) as phone_cnt
+     , sum(case when a.kind='phone' then a.origin_fee end) as phone_price
+     , sum(case when a.kind='video' then 1 end) as video_cnt
+     , sum(case when a.kind='video' then a.origin_fee end) as video_price
+     , sum(case when a.kind='visiting' then 1 end) as visiting_cnt
+     , sum(case when a.kind='visiting' then a.origin_fee end) as visiting_price
+  from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+ where a.b_date >='2022-06-16'
+   and counsel_status = 'complete'
+ group by a.b_date
+        , a.lawyer_id
+        , a.slug
+        , a.lawyer_name
+        , a.manager
+        , a.category_id
+        , a.category_name
 ;
-
 
 -- lt_s_lawyer_info
 with all_lawyer as

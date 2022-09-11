@@ -181,7 +181,7 @@ create table `mart.lt_w_lawyer_counsel`
   , category_name string options(description="분야 이름")
   , phone_cnt numeric options(description="15분 전화상담 건수")
   , phone_price numeric options(description="15분 전화상담 금액")
-  , vidoe_cnt numeric options(description="20분 영상상담 건수")
+  , video_cnt numeric options(description="20분 영상상담 건수")
   , video_price numeric options(description="20분 영상상담 금액")
   , visiting_cnt numeric options(description="30분 방문상담 건수")
   , visiting_price numeric options(description="30분 방문 상담 금액")
