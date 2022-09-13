@@ -1,4 +1,5 @@
 from airflow import DAG
+from airflow.utils.task_group import TaskGroup
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.google.cloud.sensors.bigquery import BigQueryTableExistenceSensor
 from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
