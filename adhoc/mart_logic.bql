@@ -30,7 +30,7 @@ with lawyer as
          , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
       from `lawtalk-bigquery.raw.adorders`
      where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
-       and date(createdAt,'Asia/Seoul') between date('2022-09-06')-14 and date('2022-09-06')
+       and date(createdAt,'Asia/Seoul') between date('2022-09-06')-15 and date('2022-09-06')
 )
 , adorders_pause as
 ( -- pause_start_dt와 end_date를 KST datetime으로 형변환하여 다시 array로 만든다.
@@ -221,6 +221,7 @@ select a.b_date
 with pause_lawyer as
 (
     select distinct lawyer_id as lawyer_id
+         , order_id
       from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
          , unnest(pause_start_dt) as pause_start_dt with offset as pos1
          , unnest(pause_end_dt) as pause_end_dt with offset as pos2
@@ -239,6 +240,7 @@ select date('2022-09-10') as b_date
   from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
   left join pause_lawyer b
     on a.lawyer_id = b.lawyer_id
+   and a.order_id = b.order_id
   left join
      (
         select distinct _id, campaign
