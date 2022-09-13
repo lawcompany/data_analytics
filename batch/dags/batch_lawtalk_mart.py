@@ -27,7 +27,8 @@ with DAG(
 
     delete_test = BigQueryExecuteQueryOperator(
         task_id = 'delete_test',
-        destination_dataset_table = 'lawtalk-bigquery.mart.lja_test',
+        destination_dataset_table = False
+        destination_table = 'lawtalk-bigquery.mart.lja_test',
         use_legacy_sql = False,
         sql = "DELETE FROM " + "lawtalk-bigquery.mart.lja_test" + " WHERE b_date = '{{next_ds}}'"
     )
