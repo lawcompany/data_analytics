@@ -291,8 +291,7 @@ with DAG(
     )
 
     with TaskGroup(
-        group_id="group_lawyer",
-        description ="batch_lawtalk_mart_precedence"
+        group_id="group_lawyer"
     ) as group_lawyer:
 
         ########################################################
