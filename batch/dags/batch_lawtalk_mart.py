@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.google.cloud.sensors.bigquery import BigQueryTableExistenceSensor
 from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from datetime import datetime
 from datetime import timedelta
 import pendulum
@@ -25,7 +26,7 @@ with DAG(
         task_id="start"
     )
 
-    delete_test = BigQueryExecuteQueryOperator(
+    delete_test = BigQueryOperator(
         task_id = 'delete_test',
         destination_dataset_table = False,
         destination_table = 'lawtalk-bigquery.mart.lja_test',
