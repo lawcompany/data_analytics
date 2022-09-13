@@ -26,7 +26,7 @@ with DAG(
         task_id="start"
     )
 
-    query="delete from `lawtalk-bigquery.mart.lja_test'` where b_date = '{{next_ds}}'"
+    query="delete from `lawtalk-bigquery.mart.lja_test` where b_date = '{{next_ds}}'"
     delete_test = BigQueryOperator(
         task_id = 'delete_test',
         use_legacy_sql = False,
