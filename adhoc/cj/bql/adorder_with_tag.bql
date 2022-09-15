@@ -185,8 +185,8 @@ LEFT JOIN adlocation USING (adorders_id)
 LEFT JOIN adkeyword USING (adorders_id)
 LEFT JOIN adnormal USING (adorders_id)
 WHERE 1 = 1
-  AND adorders_start_date <= '2022-08-16'
-  AND adorders_end_date >= '2022-08-31'
+  AND adorders_start_date <= '2022-08-08'
+  AND adorders_end_date >= '2022-09-07'
   -- AND (pauseHistory_startAt_date IS NOT NULL)
   AND adorders_status = 'apply'
   AND adpayments_status = 'paid'
