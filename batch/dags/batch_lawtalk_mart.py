@@ -774,13 +774,15 @@ with DAG(
         #table_name: lt_w_lawyer_counsel
         #description: [로톡] 일자별 변호사별 유료상담 현황
         #table_type: w단 일자별 집계
-        #reprocessing date range: b_date기준 12일치 재처리(D-12 ~ D-1) : lt_r_user_pay_counsel을 따라가야함
+        #reprocessing date range: b_date기준 5일치 재처리(D-6 ~ D-1) : lt_r_user_pay_counsel.counsel_exc_dt기준으로 D+5까지 counsel_status가 업데이트 될 수 있으므로 5일치 재처리
+        #modified history :
+        #    20220926 - b_date 기준을 상담실행일자(counsel_exc_dt)로 변경하고 재처리 기간을 5일치로 변경(변경된 기준으로 데이터 재적재 완료) by LJA
         ########################################################
 
         delete_lt_w_lawyer_counsel = BigQueryOperator(
             task_id = 'delete_lt_w_lawyer_counsel',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_w_lawyer_counsel` where b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_w_lawyer_counsel` where b_date between date('{{next_ds}}')-5 and date('{{next_ds}}')"
         )
 
         insert_lt_w_lawyer_counsel = BigQueryExecuteQueryOperator(
@@ -806,7 +808,7 @@ with DAG(
                      , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
                   from
                       (
-                        select a.b_date
+                        select date(a.counsel_exc_dt) as b_date
                              , a.lawyer_id
                              , a.slug
                              , a.lawyer_name
@@ -820,6 +822,7 @@ with DAG(
                              , unnest(split(a.context_additional, ',')) as cat
                          where a.b_date >='2022-06-16'
                            and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                           and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
                            and a.counsel_status = 'complete'
                       ) a
                   left join `lawtalk-bigquery.raw.adcategories` b
@@ -835,7 +838,7 @@ with DAG(
                         , a.cat
                 union all
                 -- 변호사가 입력한 분야
-                select a.b_date
+                select date(a.counsel_exc_dt) as b_date
                      , a.lawyer_id
                      , a.slug
                      , a.lawyer_name
@@ -852,8 +855,9 @@ with DAG(
                   from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
                  where a.b_date >='2022-06-16'
                    and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                   and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
                    and a.counsel_status = 'complete'
-                 group by a.b_date
+                 group by date(a.counsel_exc_dt)
                         , a.lawyer_id
                         , a.slug
                         , a.lawyer_name
