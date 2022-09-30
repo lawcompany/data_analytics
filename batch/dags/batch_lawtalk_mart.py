@@ -167,6 +167,7 @@ with DAG(
                      , count(distinct _id) as acc_050call_cnt
                   from `lawtalk-bigquery.raw.callevents`
                  where duration >= 60
+                   and type = 'profile' -- 20220930 added
                  group by lawyer
             )
             select date('{{next_ds}}') as b_date
