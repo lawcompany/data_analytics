@@ -115,6 +115,7 @@ with DAG(
                    , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
                    , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
                 from `lawtalk-bigquery.mart.lt_s_lawyer_ads` a
+               where b_date = date('{{next_ds}}') -- 20221002 added by LJA
                group by a.lawyer_id
                       , a.lawyer_name
             )
