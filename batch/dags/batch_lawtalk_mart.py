@@ -249,9 +249,9 @@ with DAG(
                             when a.is_approved=0 then null -- 비정상 데이터
                             else 0
                        end as is_plus_ad -- 플러스광고주 여부
-                     , b.category_ad_cnt
-                     , b.location_ad_cnt
-                     , b.plus_ad_cnt
+                     , coalesce(b.category_ad_cnt,0) as category_ad_cnt
+                     , coalesce(b.location_ad_cnt,0) as location_ad_cnt
+                     , coalesce(b.plus_ad_cnt,0) as plus_ad_cnt
                      , a.address_location_id
                      , a.address_location_name
                      , a.counsel_phone_fee
@@ -264,12 +264,12 @@ with DAG(
                      , a.exam_round
                      , a.exam_generation
                      , a.exam_year
-                     , c.acc_review_cnt
-                     , d.acc_qna_cnt
-                     , e.acc_post_cnt
-                     , f.acc_legaltip_cnt
-                     , g.acc_counsel_cnt
-                     , h.acc_050call_cnt
+                     , coalesce(c.acc_review_cnt,0) as acc_review_cnt
+                     , coalesce(d.acc_qna_cnt,0) as acc_qna_cnt
+                     , coalesce(e.acc_post_cnt,0) as acc_post_cnt
+                     , coalesce(f.acc_legaltip_cnt,0) as acc_legaltip_cnt
+                     , coalesce(g.acc_counsel_cnt,0) as acc_counsel_cnt
+                     , coalesce(h.acc_050call_cnt,0) as acc_050call_cnt
                      , a.crt_dt
                   from all_lawyer a
                   left join ads_lawyer_info b
