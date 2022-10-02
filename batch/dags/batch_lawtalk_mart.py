@@ -289,6 +289,8 @@ with DAG(
               ) a
               full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
                 on a.lawyer_id = b.lawyer_id
+             group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
+             -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생 
             '''
     )
 
