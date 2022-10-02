@@ -1,0 +1,211 @@
+
+create table `tmp_jungarui.lt_s_lawyer_info_bk` as
+select *
+from `mart.lt_s_lawyer_info`
+;
+
+
+drop table `mart.recover_s_lawyer_info`;
+
+create table `mart.recover_s_lawyer_info` as
+with ads_lawyer_info as
+(
+  select b_date
+       , a.lawyer_id
+       , a.lawyer_name
+       , count(distinct(case when a.kind = 'category' then a.ad_id end)) as category_ad_cnt
+       , count(distinct(case when a.kind = 'location' then a.ad_id end)) as location_ad_cnt
+       , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
+       , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
+    from `lawtalk-bigquery.mart.lt_s_lawyer_ads` a
+   where b_date >= '2022-09-10'-- 20221002 added by LJA
+   group by b_date
+          , a.lawyer_id
+          , a.lawyer_name
+)
+, base as
+(
+    select a.full_date as b_date
+         , b.lawyer
+    from `common.d_calendar` a
+      cross join (select distinct lawyer from `lawtalk-bigquery.raw.callevents` ) b
+      where a.full_date >='2015-04-06'
+)
+, acc_050call_cnt as
+(
+    select b_date
+         , lawyer_id
+         , acc_050call_cnt
+         , sum(acc_050call_cnt) over(partition by lawyer_id order by b_date) as acc_050call_cnt_t
+      from
+      (
+          select a.b_date b_date
+                 , a.lawyer as lawyer_id
+                 , count(distinct b._id) as acc_050call_cnt
+              from base a
+              left join `lawtalk-bigquery.raw.callevents` b
+                on a.b_date = date(b.createdAt, 'Asia/Seoul')
+               and a.lawyer = b.lawyer
+               and b.duration >= 60
+               and type = 'profile' -- 20220930 added
+             group by 1,2
+      ) a
+)
+select *
+from `mart.lt_s_lawyer_info`
+where is_resting = 1
+union all
+select a.b_date
+     , a.lawyer_id
+     , a.slug
+     , a.lawyer_name
+     , a.manager
+     , a.is_approved
+     , a.is_opened
+     , case when a.is_approved=1 and b.lawyer_id is not null then 1
+            when a.is_approved=0 then null -- 비정상 데데이터 이터
+            else 0
+        end as is_ad -- 광고/비광고 여부
+     , case when a.is_approved=1 and b.category_ad_cnt+b.location_ad_cnt=1 and b.free_category_ad_cnt=1 and b.plus_ad_cnt=0 then 'free'
+            when a.is_approved=1 and b.lawyer_id is not null then 'paid'
+       end as paid_kind
+     , a.is_paused
+     , a.is_fully_profile
+     , a.is_resting -- 전일자엔 변호사 정보가 있는데 당일자엔 없다면 휴면처리가 되어 센티널로 넘어갔다고 볼 수 있음
+     , case when a.is_approved=1 and b.category_ad_cnt>0 then 1
+            when a.is_approved=0 then null -- 비정상 데이터
+            else 0
+       end as is_category_ad -- 분야광고주 여부
+     , case when a.is_approved=1 and b.location_ad_cnt>0 then 1
+            when a.is_approved=0 then null -- 비정상 데이터
+            else 0
+       end as is_location_ad -- 지역광고주 여부
+     , case when a.is_approved=1 and b.plus_ad_cnt>0 then 1
+            when a.is_approved=0 then null -- 비정상 데이터
+            else 0
+       end as is_plus_ad -- 플러스광고주 여부
+     , coalesce(b.category_ad_cnt,0) as category_ad_cnt
+     , coalesce(b.location_ad_cnt,0) as location_ad_cnt
+     , coalesce(b.plus_ad_cnt,0) as plus_ad_cnt
+     , a.address_location_id
+     , a.address_location_name
+     , a.counsel_phone_fee
+     , a.counsel_video_fee
+     , a.counsel_visiting_fee
+     , a.birth
+     , a.company
+     , a.sex
+     , a.exam
+     , a.exam_round
+     , a.exam_generation
+     , a.exam_year
+     , coalesce(a.acc_review_cnt,0) as acc_review_cnt
+     , coalesce(a.acc_qna_cnt,0) as acc_qna_cnt
+     , coalesce(a.acc_post_cnt,0) as acc_post_cnt
+     , coalesce(a.acc_legaltip_cnt,0) as acc_legaltip_cnt
+     , coalesce(a.acc_counsel_cnt,0) as acc_counsel_cnt
+     , coalesce(c.acc_050call_cnt_t,0) as acc_050call_cnt
+     , a.crt_dt
+  from `mart.lt_s_lawyer_info` a
+  left join ads_lawyer_info b
+    on a.b_date = b.b_date
+   and a.lawyer_id = b.lawyer_id
+  left join acc_050call_cnt c
+    on a.b_date = c.b_date
+   and a.lawyer_id = c.lawyer_id
+ where a.is_resting = 0
+ group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
+;
+
+select lawyer_id, min(b_date)
+from `mart.lt_s_lawyer_info`
+where is_resting = 1
+group by 1
+;
+
+select *
+from `mart.recover_s_lawyer_info`
+where lawyer_id = '6034bab159230e017ed45ab6'
+order by b_date desc;
+
+
+select *
+from `mart.lt_s_lawyer_info`
+where lawyer_id = '6034bab159230e017ed45ab6'
+order by b_date desc;
+
+update `mart.lt_s_lawyer_info`
+set acc_050call_cnt = 0
+where lawyer_id in ('5f2a52fe47000500965bbc22')
+and b_date >='2022-09-30'
+;
+59f04fe94261f30e39156e07    2022-09-11 0
+6311984d9f2d50010e84c257    2022-09-15 0
+58996ff23c526064ab5e713a    2022-09-16 9
+5e97e83cb6a326026f3a98ab    2022-09-17 34
+59bd1d372acc2d38fb54ee8e    2022-09-17 10
+5f5b0cbbdcf1b20260097dfe    2022-09-18 104
+6205d3c2dcafe001442680ac    2022-09-19 0
+61f0b7d9e2aa490c264a23c8    2022-09-20 0
+62c65b6528fdcd02ff7a4256    2022-09-20 0
+52ef51adb808510a5a00003f    2022-09-20 9
+61403b93dc69110185aab992    2022-09-22 5
+52ef31a3b808510a5a000033    2022-09-25 23
+609b511702cc48002eff8d03    2022-09-25 0
+5f8cf2275b0f92007c9fc57a    2022-09-27 0
+5ed22d5ee3d2f800ae2d2b97    2022-09-28 0
+5fc5deee2262ae001d2ab1e5    2022-09-29 19
+6034bab159230e017ed45ab6    2022-09-29 22
+5f2a52fe47000500965bbc22    2022-09-30 0
+
+
+
+select count(*) -- 45239
+from `mart.recover_s_lawyer_info`
+;
+
+select count(*) -- 46249
+from `mart.lt_s_lawyer_info`
+where is_resting = 0
+;
+
+select b_date, lawyer_id, slug, lawyer_name, manager, count(*)
+from `mart.recover_s_lawyer_info`
+group by 1,2,3,4,5
+having count(*) > 1
+order by 1
+;
+
+
+  select b_date
+       , a.lawyer_id
+       , a.lawyer_name
+       , count(distinct(case when a.kind = 'category' then a.ad_id end)) as category_ad_cnt
+       , count(distinct(case when a.kind = 'location' then a.ad_id end)) as location_ad_cnt
+       , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
+       , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
+    from `lawtalk-bigquery.mart.lt_s_lawyer_ads` a
+   where b_date = '2022-09-23'-- 20221002 added by LJA
+     and lawyer_name = '탈퇴한 변호사'
+   group by b_date
+          , a.lawyer_id
+          , a.lawyer_name
+    ;
+
+select *
+from `raw.lawyers`
+where _id = '5e2169cb6f333d01bee4924a'
+;
+
+select b_date, lawyer_id, slug, lawyer_name, manager, count(*)
+from `mart.lt_s_lawyer_info`
+group by 1,2,3,4,5
+having count(*) > 1
+order by 1
+;
+
+select *
+from `mart.lt_s_lawyer_info`
+where lawyer_id = '5e2169cb6f333d01bee4924a'
+and b_date = '2022-09-23'
+;
