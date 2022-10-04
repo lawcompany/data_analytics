@@ -1,0 +1,377 @@
+--lawtalk-bigquery.mart.lt_r_lawyer_ad_sales
+with lawyer as
+( -- 변호사 정보
+    select _id as lawyer_id
+         , name as lawyer_name
+         , manager
+         , case when slug = '5e314482c781c20602690b79' and _id = '5e314482c781c20602690b79' then '탈퇴한 변호사'
+                when slug = '5e314482c781c20602690b79' and _id = '616d0c91b78909e152c36e71' then '미활동 변호사'
+                when slug like '%탈퇴한%' then concat(slug,'(탈퇴보류)')
+                else slug
+           end as slug
+      from `lawtalk-bigquery.staging_test2.lawyers`
+     where role = 'lawyer'
+)
+, adorders_base as
+( -- adorders에서 필요한 정보만 간추려 가져온다.
+    select _id as order_id
+         , lawyer as lawyer_id
+         , json_query_array(adLocations) as adLocations
+         , json_query_array(categories) as categories
+         , coupon as coupon_id
+         , safe_cast(price as numeric) as price
+         , status as order_status
+         , datetime(timestamp(safe_cast(json_value(term.startAt) as datetime)),'Asia/Seoul') as ad_start_dt
+         , datetime(timestamp(safe_cast(json_value(term.endAt) as datetime)),'Asia/Seoul') as ad_end_dt
+         , json_query_array(pauseHistory) pause_history
+         , case when json_value(autoExtendTerm.status)='on' then 1 else 0 end as is_auto_extend
+         , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
+         , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
+      from `lawtalk-bigquery.staging_test2.adorders`
+     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
+)
+, adorders_pause as
+( -- pause_start_dt와 end_date를 KST datetime으로 형변환하여 다시 array로 만든다.
+    select order_id
+         , array_agg(pause_start_dt) as pause_start_dt
+         , array_agg(pause_end_dt) as pause_end_dt
+      from
+      (
+          select a.order_id
+               , datetime(timestamp(safe_cast(json_value(b.startAt) as datetime)),'Asia/Seoul')  as pause_start_dt
+               , datetime(timestamp(safe_cast(json_value(b.endAt) as datetime)),'Asia/Seoul')  as pause_end_dt
+            from adorders_base a
+               , unnest(pause_history) as b
+           where pos1 = pos2
+      ) a
+     group by order_id
+)
+, adorders_location as
+( -- 지역광고 주문건에 대해 지역정보를 가져온다.
+    select a.order_id
+         , array_agg(a.location_id) as location_id
+         , array_agg(b.name) as location_name
+         , b.adLocationGroup as location_group_id
+         , c.name as location_group_name
+         , c.adLocationCategory as location_category_id
+         , d.name as location_category_name
+      from
+      (
+          select a.order_id
+               , json_value(b.locationId) as location_id
+            from adorders_base a,
+                 unnest(adLocations) as b
+      ) a
+      left join `lawtalk-bigquery.staging_test2.adlocations` b
+        on a.location_id = b._id
+      left join `lawtalk-bigquery.staging_test2.adlocationgroups` c
+        on b.adLocationGroup = c._id
+      left join `lawtalk-bigquery.staging_test2.adlocationcategories` d
+        on c.adLocationCategory = d._id
+      group by a.order_id
+             , b.adLocationGroup
+             , c.name
+             , c.adLocationCategory
+             , d.name
+)
+, adorders_category as
+( -- 분야광고 주문건에 대해 분야정보를 가져온다.
+    select a.order_id
+         , a.category_id
+         , b.name as category_name
+      from
+      (
+          select a.order_id
+               , json_value(b.adCategoryId) as category_id
+            from adorders_base a,
+                 unnest(categories) as b
+      ) a
+      left join `lawtalk-bigquery.staging_test2.adcategories` b
+        on a.category_id = b._id
+)
+, adpayments_base as
+( -- adpayments에서 필요한 정보만 간추려 가져온다.
+    select _id as pay_id
+         , status as pay_status
+         , safe_cast(fixedFee as numeric) as tot_fixed_fee
+         , safe_cast(originFee as numeric) as tot_origin_fee
+         , adSubscription as subscription_id
+         , coupon as coupon_id
+         , method as pay_method
+         , datetime(timestamp(requestedAt),'Asia/Seoul')  as pay_req_dt
+         , datetime(timestamp(createdAt),'Asia/Seoul') as pay_crt_dt
+         , datetime(timestamp(updatedAt),'Asia/Seoul') as pay_upd_dt
+         , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
+         , order_id
+      from `lawtalk-bigquery.staging_test2.adpayments` a
+         , unnest(json_query_array(orders)) as order_id
+)
+, betaadorders_base as
+( -- betaadorders에서 필요한 정보만 간추려 가져온다.
+    select date(createdAt,'Asia/Seoul') as b_date
+         , _id as order_id
+         , lawyer as lawyer_id
+         , adCategory as category_id
+         , category as category_name
+         , safe_cast(price as numeric) as price
+         , status as order_status
+         , datetime(timestamp(safe_cast(json_value(term.startAt) as datetime)),'Asia/Seoul') as ad_start_dt
+         , datetime(timestamp(safe_cast(json_value(term.endAt) as datetime)),'Asia/Seoul') as ad_end_dt
+         , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
+         , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
+      from `lawtalk-bigquery.staging_test2.betaadorders` a
+     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
+)
+-- 각 정보들 join하여 최종 데이터 구성
+select date(a.order_crt_dt) as b_date
+     , b.pay_id
+     , a.order_id
+     , a.lawyer_id
+     , c.slug
+     , c.lawyer_name
+     , c.manager
+     , case when array_length(a.location_id) > 0 then 'location'
+            when array_length(a.category_id) > 0 then 'category'
+            else 'N/A'
+       end as kind
+     , d.location_id
+     , d.location_name
+     , d.location_group_id
+     , d.location_group_name
+     , d.location_category_id
+     , d.location_category_name
+     , e.category_id
+     , e.category_name
+     , b.pay_status
+     , b.tot_fixed_fee
+     , b.tot_origin_fee
+     , b.subscription_id
+     , coalesce(a.coupon_id,b.coupon_id) as coupon_id
+     , b.pay_method
+     , b.pay_req_dt
+     , b.pay_crt_dt
+     , b.pay_upd_dt
+     , b.pay_canc_dt
+     , a.price
+     , a.order_status
+     , a.ad_start_dt
+     , a.ad_end_dt
+     , f.pause_start_dt
+     , f.pause_end_dt
+     , a.is_auto_extend
+     , a.order_crt_dt
+     , a.order_upd_dt
+  from adorders_base a
+  left join adpayments_base b
+    on a.order_id = b.order_id
+  left join lawyer c
+    on a.lawyer_id = c.lawyer_id
+  left join adorders_location d
+    on a.order_id = d.order_id
+  left join adorders_category e
+    on a.order_id = e.order_id
+  left join adorders_pause f
+    on a.order_id = f.order_id
+ union all
+-- 플러스광고 따로 insert
+select a.b_date
+     , null as pay_id
+     , a.order_id
+     , a.lawyer_id
+     , c.slug
+     , c.lawyer_name
+     , c.manager
+     , 'plus' as kind
+     , null as location_id
+     , null as location_name
+     , null as location_group_id
+     , null as location_group_name
+     , null as location_category_id
+     , null as location_category_name
+     , a.category_id
+     , a.category_name
+     , null as pay_status
+     , null as tot_fixed_fee
+     , null as tot_origin_fee
+     , null as subscription_id
+     , null as coupon_id
+     , null as pay_method
+     , null as pay_req_dt
+     , null as pay_crt_dt
+     , null as pay_upd_dt
+     , null as pay_canc_dt
+     , a.price
+     , a.order_status
+     , a.ad_start_dt
+     , a.ad_end_dt
+     , null as pause_start_dt
+     , null as pause_end_dt
+     , null as is_auto_extend
+     , a.order_crt_dt
+     , a.order_upd_dt
+  from betaadorders_base a
+  left join lawyer c
+    on a.lawyer_id = c.lawyer_id
+  ;
+
+
+
+
+  -- lawtalk-bigquery.mart.lt_r_user_pay_counsel
+  with lawyer as
+  ( -- 변호사 정보
+      select _id as lawyer_id
+           , name as lawyer_name
+           , manager
+           , case when slug = '5e314482c781c20602690b79' and _id = '5e314482c781c20602690b79' then '탈퇴한 변호사'
+                  when slug = '5e314482c781c20602690b79' and _id = '616d0c91b78909e152c36e71' then '미활동 변호사'
+                  when slug like '%탈퇴한%' then concat(slug,'(탈퇴보류)')
+                  else slug
+             end as slug
+        from `lawtalk-bigquery.raw.lawyers`
+       where role = 'lawyer'
+  )
+  , user as
+  ( -- 유저 정보
+      select _id as user_id
+           , email as user_email
+           , username as user_nickname
+           , username as user_name
+        from `lawtalk-bigquery.raw.users`
+  )
+  , advice_base as
+  ( -- advice 컬렉션에서 필요정보만 발췌
+      select a._id as counsel_id
+           , a.user as user_id
+           , a.email as user_email
+           , a.name as user_name
+           , lawyer as lawyer_id
+           , case when a.kind is null then 'phone' else a.kind end as kind
+           , a.body
+           , a.status as counsel_status
+           , datetime(a.createdAt,'Asia/Seoul') as counsel_crt_dt
+           , datetime(date_add(datetime(a.daystring), interval cast(a.time * 30 as int) minute)) as counsel_exc_dt
+           , datetime(a.updatedAt,'Asia/Seoul') as counsel_upd_dt
+           , a.adCategory as category_id
+           , b.name as category_name
+           , regexp_extract(a.survey, r"'surveyUser': '(.*?)'") as user_review_id
+           , regexp_extract(a.survey, r"'surveyResult': '(.*?)'") as lawyer_survey_id
+           , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(a.review, r"'date': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')as user_review_dt
+           , regexp_extract(a.review, r"'rate': (\d+)") as user_review_rate
+           , regexp_extract(a.review, r"'title': '(.*?)'") as user_review_title
+           , regexp_extract(a.review, r"'body': '(.*?)'") as user_review_body
+           , regexp_extract(cancelInfo, r"'adviceCancelCode': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as counsel_cancel_code
+        from `lawtalk-bigquery.raw.advice` a
+        left join `lawtalk-bigquery.raw.adcategories` b
+          on a.adCategory = b._id
+       where date(a.createdAt,'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
+  )
+  , advicetransactions_base as
+  ( -- advicetransactions 컬렉션에서 필요정보만 발췌
+    -- 키워드 입력이 아니라 분야선택이나 지역선택해서 들어왔을 때 extra_info에만 입력되고 있어서, extra_info가 분야명이나 지역명 그 자체라면 context_additional에도 동일 값 기록되도록 보정해 줌
+      select a.pay_id
+           , a.counsel_id
+           , a.user_id
+           , a.lawyer_id
+           , a.pay_status
+           , a.pay_method
+           , a.price
+           , a.origin_fee
+           , a.good_name
+           , a.coupon_id
+           , a.device
+           , case when a.context is null then (case when b.name is not null then 'category'
+                                                    when c.name is not null then 'location'
+                                               end)
+                  else a.context
+             end as context
+           , a.extra_info
+           , coalesce(a.context_additional, b.name, c.name, 'N/A') as context_additional
+           , a.adid
+           , a.pay_req_dt
+           , a.pay_crt_dt
+           , a.pay_upd_dt
+           , a.pay_canc_dt
+        from
+            (
+              select _id as pay_id
+                   , advice as counsel_id
+                   , user as user_id
+                   , lawyer as lawyer_id
+                   , status as pay_status
+                   , method as pay_method
+                   , safe_cast(regexp_extract(paid, r"'price': (\d+)") as numeric) as price
+                   , safe_cast(originFee as numeric) as origin_fee
+                   , regexp_extract(raw, r"'goodname': '(.*?)'") as good_name
+                   , coupon as coupon_id
+                   , regexp_extract(metadata, r"'ua': '(.*?)'") as device
+                   , regexp_extract(metadata, r"'context': '(.*?)'") as context
+                   , regexp_extract(metadata, r"'extraInfo': '(.*?)'") as extra_info
+                   , regexp_extract(metadata, r"'contextAdditional': '(.*?)'") as context_additional
+                   , regexp_extract(metadata, r"'adid': '(.*?)'") as adid
+                   , datetime(requestedAt,'Asia/Seoul') as pay_req_dt
+                   , datetime(createdAt,'Asia/Seoul') as pay_crt_dt
+                   , datetime(updatedAt,'Asia/Seoul') as pay_upd_dt
+                   , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(canceled, r"'at': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')as pay_canc_dt
+                from `lawtalk-bigquery.raw.advicetransactions` a
+               where date(a.createdAt,'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
+            ) a
+        left join `lawtalk-bigquery.raw.adcategories` b
+          on coalesce(a.context_additional,a.extra_info) = b.name
+        left join `lawtalk-bigquery.raw.adlocationgroups` c
+          on coalesce(a.context_additional,a.extra_info) = c.name
+  )
+  select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
+       , coalesce(a.counsel_id,b.counsel_id) as counsel_id
+       , b.pay_id
+       , coalesce(b.user_id,a.user_id) as user_id
+       , coalesce(a.user_email,d.user_email) as user_email
+       , coalesce(a.user_name,d.user_name) as user_name
+       , d.user_nickname
+       , coalesce(b.lawyer_id,a.lawyer_id) as lawyer_id
+       , c.slug
+       , c.lawyer_name
+       , c.manager
+       , a.kind
+       , b.pay_status
+       , b.pay_method
+       , b.price
+       , b.origin_fee
+       , b.good_name
+       , b.coupon_id
+       , b.device
+       , b.context
+       , b.context_additional
+       , b.extra_info
+       , b.adid
+       , b.pay_req_dt
+       , b.pay_crt_dt
+       , b.pay_upd_dt
+       , b.pay_canc_dt
+       , a.body
+       , a.counsel_status
+       , a.counsel_cancel_code
+       , e.description as counsel_cancel_reason
+       , a.counsel_crt_dt
+       , a.counsel_exc_dt
+       , a.counsel_upd_dt
+       , case when a.counsel_id is not null and a.lawyer_survey_id is null then 'N/A' else a.category_id end as category_id
+       , case when a.counsel_id is not null and a.lawyer_survey_id is null then 'N/A' else a.category_name end as category_name
+       , a.lawyer_survey_id
+       , a.user_review_id
+       , a.user_review_dt
+       , a.user_review_rate
+       , a.user_review_title
+       , a.user_review_body
+    from advice_base a
+    full join advicetransactions_base b
+      on a.counsel_id = b.counsel_id
+    left join lawyer c
+      on coalesce(b.lawyer_id,a.lawyer_id,'') = c.lawyer_id
+    left join user d
+      on coalesce(b.user_id,a.user_id,'') = d.user_id
+    left join `lawtalk-bigquery.raw.advicecancelcodes` e
+      on a.counsel_cancel_code = e._id
+    ;
