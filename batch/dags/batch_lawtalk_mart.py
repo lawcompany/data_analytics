@@ -115,6 +115,7 @@ with DAG(
                    , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
                    , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
                 from `lawtalk-bigquery.mart.lt_s_lawyer_ads` a
+               where b_date = date('{{next_ds}}') -- 20221002 added by LJA
                group by a.lawyer_id
                       , a.lawyer_name
             )
@@ -248,9 +249,9 @@ with DAG(
                             when a.is_approved=0 then null -- 비정상 데이터
                             else 0
                        end as is_plus_ad -- 플러스광고주 여부
-                     , b.category_ad_cnt
-                     , b.location_ad_cnt
-                     , b.plus_ad_cnt
+                     , coalesce(b.category_ad_cnt,0) as category_ad_cnt
+                     , coalesce(b.location_ad_cnt,0) as location_ad_cnt
+                     , coalesce(b.plus_ad_cnt,0) as plus_ad_cnt
                      , a.address_location_id
                      , a.address_location_name
                      , a.counsel_phone_fee
@@ -263,12 +264,12 @@ with DAG(
                      , a.exam_round
                      , a.exam_generation
                      , a.exam_year
-                     , c.acc_review_cnt
-                     , d.acc_qna_cnt
-                     , e.acc_post_cnt
-                     , f.acc_legaltip_cnt
-                     , g.acc_counsel_cnt
-                     , h.acc_050call_cnt
+                     , coalesce(c.acc_review_cnt,0) as acc_review_cnt
+                     , coalesce(d.acc_qna_cnt,0) as acc_qna_cnt
+                     , coalesce(e.acc_post_cnt,0) as acc_post_cnt
+                     , coalesce(f.acc_legaltip_cnt,0) as acc_legaltip_cnt
+                     , coalesce(g.acc_counsel_cnt,0) as acc_counsel_cnt
+                     , coalesce(h.acc_050call_cnt,0) as acc_050call_cnt
                      , a.crt_dt
                   from all_lawyer a
                   left join ads_lawyer_info b
@@ -288,6 +289,8 @@ with DAG(
               ) a
               full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
                 on a.lawyer_id = b.lawyer_id
+             group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
+             -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생 
             '''
     )
 
