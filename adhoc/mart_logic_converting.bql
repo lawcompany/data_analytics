@@ -251,18 +251,18 @@ select a.b_date
            , case when a.kind is null then 'phone' else a.kind end as kind
            , a.body
            , a.status as counsel_status
-           , datetime(a.createdAt,'Asia/Seoul') as counsel_crt_dt
+           , datetime(timestamp(a.createdAt),'Asia/Seoul') as counsel_crt_dt
            , datetime(date_add(datetime(a.daystring), interval cast(a.time * 30 as int) minute)) as counsel_exc_dt
-           , datetime(a.updatedAt,'Asia/Seoul') as counsel_upd_dt
+           , datetime(timestamp(a.updatedAt),'Asia/Seoul') as counsel_upd_dt
            , a.adCategory as category_id
            , b.name as category_name
-           , regexp_extract(a.survey, r"'surveyUser': '(.*?)'") as user_review_id
-           , regexp_extract(a.survey, r"'surveyResult': '(.*?)'") as lawyer_survey_id
-           , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(a.review, r"'date': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')as user_review_dt
-           , regexp_extract(a.review, r"'rate': (\d+)") as user_review_rate
-           , regexp_extract(a.review, r"'title': '(.*?)'") as user_review_title
-           , regexp_extract(a.review, r"'body': '(.*?)'") as user_review_body
-           , regexp_extract(cancelInfo, r"'adviceCancelCode': ObjectId\(\'([ㄱ-ㅎ가-힣a-zA-Z0-9 !#$%&()*+,-./:;<=>?@[\]^_`{|}~]+)\'\)") as counsel_cancel_code
+           , json_value(a.survey.surveyUser) as user_review_id
+           , json_value(a.survey.surveyResult) as lawyer_survey_id
+           , datetime(timestamp(safe_cast(json_value(review.date) as datetime)),'Asia/Seoul') as user_review_dt
+           , json_value(a.review.rate) as user_review_rate
+           , json_value(a.review.title) as user_review_title
+           , json_value(a.review.body) as user_review_body
+           , json_value(cancelInfo.adviceCancelCode) as counsel_cancel_code
         from `lawtalk-bigquery.raw.advice` a
         left join `lawtalk-bigquery.raw.adcategories` b
           on a.adCategory = b._id
@@ -302,19 +302,19 @@ select a.b_date
                    , lawyer as lawyer_id
                    , status as pay_status
                    , method as pay_method
-                   , safe_cast(regexp_extract(paid, r"'price': (\d+)") as numeric) as price
+                   , safe_cast(json_value(paid.price) as numeric) as price
                    , safe_cast(originFee as numeric) as origin_fee
-                   , regexp_extract(raw, r"'goodname': '(.*?)'") as good_name
+                   , json_value(raw.goodname) as good_name
                    , coupon as coupon_id
-                   , regexp_extract(metadata, r"'ua': '(.*?)'") as device
-                   , regexp_extract(metadata, r"'context': '(.*?)'") as context
-                   , regexp_extract(metadata, r"'extraInfo': '(.*?)'") as extra_info
-                   , regexp_extract(metadata, r"'contextAdditional': '(.*?)'") as context_additional
-                   , regexp_extract(metadata, r"'adid': '(.*?)'") as adid
-                   , datetime(requestedAt,'Asia/Seoul') as pay_req_dt
-                   , datetime(createdAt,'Asia/Seoul') as pay_crt_dt
-                   , datetime(updatedAt,'Asia/Seoul') as pay_upd_dt
-                   , datetime(parse_timestamp('%Y, %m, %e, %H, %M, %S', regexp_extract(canceled, r"'at': datetime.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})")), 'Asia/Seoul')as pay_canc_dt
+                   , json_value(metadata.ua) as device
+                   , json_value(metadata.context) as context
+                   , json_value(metadata.extraInfo) as extra_info
+                   , json_value(metadata.contextAdditional) as context_additional
+                   , json_value(metadata.adid) as adid
+                   , datetime(timestamp(requestedAt),'Asia/Seoul') as pay_req_dt
+                   , datetime(timestamp(createdAt),'Asia/Seoul') as pay_crt_dt
+                   , datetime(timestamp(updatedAt),'Asia/Seoul') as pay_upd_dt
+                   , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
                 from `lawtalk-bigquery.raw.advicetransactions` a
                where date(a.createdAt,'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
             ) a
@@ -375,3 +375,247 @@ select a.b_date
     left join `lawtalk-bigquery.raw.advicecancelcodes` e
       on a.counsel_cancel_code = e._id
     ;
+
+
+
+    select 'adcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adcategories` union all
+    select 'adcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adcoupons` union all
+    select 'adkeywords' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adkeywords` union all
+    select 'adlocationcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocationcategories` union all
+    select 'adlocationgroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocationgroups` union all
+    select 'adlocations' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocations` union all
+    select 'adorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adorders` union all
+    select 'adpayments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adpayments` union all
+    select 'adproductoptions' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adproductoptions` union all
+    select 'adproducts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adproducts` union all
+    select 'adsubscriptions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adsubscriptions` union all
+    select 'adtypes' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adtypes` union all
+    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advice` union all
+    select 'advicecancelcodes' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecancelcodes` union all
+    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecoupons` union all
+    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adviceschedules` union all
+    select 'advicetransaction' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicetransaction` union all
+    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answerbodies` union all
+    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answercomments` union all
+    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answers` union all
+    select 'betaadorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.betaadorders` union all
+    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.callevents` union all
+    select 'categorygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.categorygroups` union all
+    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.clientevaluations` union all
+    select 'expertise' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.expertise` union all
+    select 'highlighttaglogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.highlighttaglogs` union all
+    select 'highlighttags' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.highlighttags` union all
+    select 'keywordcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.keywordcoupons` union all
+    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyerranks` union all
+    select 'lawyers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyers` union all
+    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.logs` union all
+    select 'notifytalklogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.notifytalklogs` union all
+    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.posts` union all
+    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.questions` union all
+    select 'surveycategories' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveycategories` union all
+    select 'surveygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveygroups` union all
+    select 'surveyquestions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveyquestions` union all
+    select 'surveyresults' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveyresults` union all
+    select 'usercouponbooks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.usercouponbooks` union all
+    select 'users' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.users` union all
+    select 'videoactivities' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videoactivities` union all
+    select 'videocategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videocategories` union all
+    select 'videos' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videos` union all
+    select 'visiblecloudtypehistories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.visiblecloudtypehistories`
+    order by 1
+    ;
+
+
+
+
+
+    select 'adcategories' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adcategories` union all
+    select 'adcoupons' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adcoupons` union all
+    select 'adkeywords' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adkeywords` union all
+    select 'adlocationcategories' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adlocationcategories` union all
+    select 'adlocationgroups' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adlocationgroups` union all
+    select 'adlocations' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adlocations` union all
+    select 'adorders' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adorders` union all
+    select 'adpayments' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adpayments` union all
+    select 'adproductoptions' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adproductoptions` union all
+    select 'adproducts' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adproducts` union all
+    select 'adsubscriptions' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adsubscriptions` union all
+    select 'adtypes' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adtypes` union all
+    select 'advice' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advice` union all
+    select 'advicecancelcodes' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advicecancelcodes` union all
+    select 'advicecoupons' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advicecoupons` union all
+    select 'adviceschedules' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adviceschedules` union all
+    select 'advicetransactions' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advicetransactions` union all
+    select 'answerbodies' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answerbodies` union all
+    select 'answercomments' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answercomments` union all
+    select 'answers' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answers` union all
+    select 'betaadorders' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.betaadorders` union all
+    select 'callevents' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.callevents` union all
+    select 'categorygroups' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.categorygroups` union all
+    select 'clientevaluations' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.clientevaluations` union all
+    select 'expertise' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.expertise` union all
+    select 'highlighttaglogs' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.highlighttaglogs` union all
+    select 'highlighttags' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.highlighttags` union all
+    select 'keywordcoupons' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.keywordcoupons` union all
+    select 'lawyerranks' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.lawyerranks` union all
+    select 'lawyers' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.lawyers` union all
+    select 'logs' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.logs` union all
+    select 'notifytalklogs' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.notifytalklogs` union all
+    select 'posts' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.posts` union all
+    select 'questions' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.questions` union all
+    select 'surveycategories' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.surveycategories` union all
+    select 'surveygroups' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.surveygroups` union all
+    select 'surveyquestions' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.surveyquestions` union all
+    select 'surveyresults' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.surveyresults` union all
+    select 'usercouponbooks' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.usercouponbooks` union all
+    select 'users' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.users` union all
+    select 'videoactivities' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.videoactivities` union all
+    select 'videocategories' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.videocategories` union all
+    select 'videos' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.videos` union all
+    select 'visiblecloudtypehistories' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.visiblecloudtypehistories`
+    order by 1;
+
+
+
+
+
+
+    select table_name
+         , count(distinct column_name) as col_cnt
+    from `staging_test2.INFORMATION_SCHEMA.COLUMNS`
+    group by table_name
+    order by 1
+    limit 1000;
+
+
+    select table_name
+         , count(distinct column_name) as col_cnt
+    from `raw.INFORMATION_SCHEMA.COLUMNS`
+    where table_name not in ('advertisementevents','lawcategories','lawyers_snapshot','recommend_qna','statistics','users_snapshot','videoactivities_copy')
+    group by table_name
+    order by 1
+    ;
+
+    select table_name, column_name, ordinal_position
+    from `staging_test2.INFORMATION_SCHEMA.COLUMNS`
+    where table_name in
+    (
+    'adcoupons'
+    ,'adkeywords'
+    ,'adorders'
+    ,'adpayments'
+    ,'adproductoptions'
+    ,'adsubscriptions'
+    ,'advicecancelcodes'
+    ,'advicecoupons'
+    ,'advicetransaction'
+    ,'betaadorders'
+    ,'categorygroups'
+    ,'clientevaluations'
+    ,'highlighttaglogs'
+    ,'lawyers'
+    ,'logs'
+    ,'posts'
+    ,'questions'
+    ,'usercouponbooks'
+    ,'users'
+    )
+    order by table_name, column_name, ordinal_position;
+
+
+
+    select table_name, column_name, ordinal_position
+    from `raw.INFORMATION_SCHEMA.COLUMNS`
+    where table_name in
+    (
+    'adcoupons'
+    ,'adkeywords'
+    ,'adorders'
+    ,'adpayments'
+    ,'adproductoptions'
+    ,'adsubscriptions'
+    ,'advicecancelcodes'
+    ,'advicecoupons'
+    ,'advicetransactions'
+    ,'betaadorders'
+    ,'categorygroups'
+    ,'clientevaluations'
+    ,'highlighttaglogs'
+    ,'lawyers'
+    ,'logs'
+    ,'posts'
+    ,'questions'
+    ,'usercouponbooks'
+    ,'users'
+    )
+    order by table_name, column_name, ordinal_position;
+
+
+
+    select distinct bgImage
+    ,categories
+    --,mainFieldScores
+    ,openYear
+    --,photo
+    ,premium
+    ,showCounselCategories
+    --,slug
+    --,slugs
+    from `raw.lawyers`
+    where date(createdAt,'Asia/Seoul') >= '2022-01-01'
+    ;
+
+
+    select distinct exportable
+    from `raw.questions`
+    where date(createdAt,'Asia/Seoul') >= '2022-01-01'
+    ;
+
+    select distinct hashedPassword
+    ,naverId
+    ,salt
+    from `raw.users`
+    where date(createdAt,'Asia/Seoul') >= '2022-01-01'
+    ;
+
+
+    select distinct naverId
+    from `raw.users`
+    where date(createdAt,'Asia/Seoul') >= '2022-01-01'
+    ;
+
+    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.clientevaluations` union all
+
+    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advice` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecoupons` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adviceschedules` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answerbodies` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answercomments` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answers` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.callevents` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyerranks` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'  union all
+    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.logs` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.posts` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.questions` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'
+    order by 1;
+
+
+    select 'clientevaluations' as table_name, max(datetime(current_timestamp,'Asia/Seoul')) as max_crt, max(datetime(current_timestamp,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.clientevaluations` union all
+
+    select 'advice' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advice` where date(createdAt,'Asia/Seoul') <= '2022-10-04'  union all
+    select 'advicecoupons' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.advicecoupons` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'adviceschedules' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.adviceschedules` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'answerbodies' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answerbodies` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'answercomments' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answercomments` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'answers' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.answers` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'callevents' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.callevents` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'lawyerranks' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.lawyerranks` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'logs' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.logs` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'posts' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.posts` where date(createdAt,'Asia/Seoul') <= '2022-10-04' union all
+    select 'questions' as table_name, max(datetime(createdAt,'Asia/Seoul')) as max_crt, max(datetime(updatedAt,'Asia/Seoul')) as max_upd, count(*) as cnt from `raw.questions` where date(createdAt,'Asia/Seoul') <= '2022-10-04'
+    order by 1;
+
+
+    select *
+    from ``
+    where createdAt = '2022-10-04T23:59:08.521000'
