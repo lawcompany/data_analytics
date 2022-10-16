@@ -290,7 +290,7 @@ with DAG(
               full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
                 on a.lawyer_id = b.lawyer_id
              group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
-             -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생 
+             -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생
             '''
     )
 
@@ -576,7 +576,7 @@ with DAG(
                      , a.kind
                      , case when a.kind='location' then a.location_group_id else a.category_id end as ad_id
                      , case when a.kind='location' then a.location_group_name else a.category_name end as ad_name
-                     , case when c._id is not null then 1 else 0 end as is_free
+                     , sum(case when c._id is not null then 1 else 0 end) as is_free
                   from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` a
                   left join pause_lawyer b
                     on a.lawyer_id = b.lawyer_id
@@ -592,6 +592,7 @@ with DAG(
                    and a.order_status = 'apply'
                    and date('{{next_ds}}') between date(a.ad_start_dt) and date(a.ad_end_dt)
                    and b.lawyer_id is null
+                 group by 1,2,3,4,5,6,7,8 -- 20221012 by jungarui 무료광고 체크 시 중복건 발생 확인하여 수정
                 '''
         )
 
