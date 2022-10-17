@@ -306,17 +306,12 @@ with DAG(
         #reprocessing date range: b_date기준 16일치 재처리(D-16 ~ D-1) : 광고기간이 1~15일 / 16~말일이고 그 사이 데이터 변경이 있을 수 있어 16일치 재처리(말일이 31일 경우 최대 16일이므로..)
         ########################################################
 
-        delete_lt_r_lawyer_ad_sales = BigQueryOperator(
-            task_id = 'delete_lt_r_lawyer_ad_sales',
+        #집계데이터 tmp테이블에 먼저 insert
+        insert_tmp_lt_r_lawyer_ad_sales = BigQueryExecuteQueryOperator(
+            task_id='insert_tmp_lt_r_lawyer_ad_sales',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales` where b_date between date('{{next_ds}}')-15 and date('{{next_ds}}')"
-        )
-
-        insert_lt_r_lawyer_ad_sales = BigQueryExecuteQueryOperator(
-            task_id='insert_lt_r_lawyer_ad_sales',
-            use_legacy_sql = False,
-            destination_dataset_table='lawtalk-bigquery.mart.lt_r_lawyer_ad_sales',
-            write_disposition = 'WRITE_APPEND',
+            destination_dataset_table='lawtalk-bigquery.mart.tmp_lt_r_lawyer_ad_sales',
+            write_disposition = 'WRITE_TRUNCATE',
             sql='''
                 with lawyer as
                 ( -- 변호사 정보
@@ -348,8 +343,9 @@ with DAG(
                          , datetime(createdAt,'Asia/Seoul') as order_crt_dt
                          , datetime(updatedAt,'Asia/Seoul') as order_upd_dt
                       from `lawtalk-bigquery.raw.adorders`
-                     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
-                       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
+                     where ((date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+                       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}'))
+                        or date(updatedAt,'Asia/Seoul') = date('{{next_ds}}')) -- 20221017 added by jungarui 무료광고분야의 분야를 광고기간중엔 언제든지 바꿀 수 있다고 함.
                 )
                 , adorders_pause as
                 ( -- pause_start_dt와 end_date를 KST datetime으로 형변환하여 다시 array로 만든다.
@@ -535,6 +531,29 @@ with DAG(
                   from betaadorders_base a
                   left join lawyer c
                     on a.lawyer_id = c.lawyer_id
+                '''
+        )
+
+        #upsert를 위해 앞에서 집계한 tmp테이블을 가지고 delete
+        delete_lt_r_lawyer_ad_sales = BigQueryOperator(
+            task_id = 'delete_lt_r_lawyer_ad_sales',
+            use_legacy_sql = False,
+            sql = '''
+                  delete from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales`
+                        where b_date between date('{{next_ds}}')-15 and date('{{next_ds}}')
+                           or order_id in (select distint order_id from `lawtalk-bigquery.mart.tmp_lt_r_lawyer_ad_sales`)
+                  '''
+        )
+
+        #원테이블에 tmp데이터 전체 insert
+        insert_lt_r_lawyer_ad_sales = BigQueryExecuteQueryOperator(
+            task_id='insert_lt_r_lawyer_ad_sales',
+            use_legacy_sql = False,
+            destination_dataset_table='lawtalk-bigquery.mart.lt_r_lawyer_ad_sales',
+            write_disposition = 'WRITE_APPEND',
+            sql='''
+                select *
+                  from `lawtalk-bigquery.mart.tmp_lt_r_lawyer_ad_sales`
                 '''
         )
 
@@ -872,7 +891,7 @@ with DAG(
                 '''
         )
 
-        delete_lt_r_lawyer_ad_sales >> insert_lt_r_lawyer_ad_sales >> delete_lt_s_lawyer_ads >> insert_lt_s_lawyer_ads
+        insert_tmp_lt_r_lawyer_ad_sales >> delete_lt_r_lawyer_ad_sales >> insert_lt_r_lawyer_ad_sales >> delete_lt_s_lawyer_ads >> insert_lt_s_lawyer_ads
         delete_lt_r_user_pay_counsel >> insert_lt_r_user_pay_counsel >> delete_lt_w_lawyer_counsel >> insert_lt_w_lawyer_counsel
 
 
