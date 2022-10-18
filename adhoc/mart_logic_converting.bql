@@ -28,8 +28,9 @@ with lawyer as
          , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
          , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
       from `lawtalk-bigquery.staging_test2.adorders`
-     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
-       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
+     where (( date(timestamp(createdAt),'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+       and date(timestamp(createdAt),'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}') )
+        or date(timestamp(updatedAt),'Asia/Seoul') = date('{{next_ds}}'))
 )
 , adorders_pause as
 ( -- pause_start_dt와 end_date를 KST datetime으로 형변환하여 다시 array로 만든다.
@@ -43,7 +44,6 @@ with lawyer as
                , datetime(timestamp(safe_cast(json_value(b.endAt) as datetime)),'Asia/Seoul')  as pause_end_dt
             from adorders_base a
                , unnest(pause_history) as b
-           where pos1 = pos2
       ) a
      group by order_id
 )
@@ -105,11 +105,11 @@ with lawyer as
          , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
          , order_id
       from `lawtalk-bigquery.staging_test2.adpayments` a
-         , unnest(json_query_array(orders)) as order_id
+         , unnest(json_value_array(orders)) as order_id
 )
 , betaadorders_base as
 ( -- betaadorders에서 필요한 정보만 간추려 가져온다.
-    select date(createdAt,'Asia/Seoul') as b_date
+    select date(timestamp(createdAt),'Asia/Seoul') as b_date
          , _id as order_id
          , lawyer as lawyer_id
          , adCategory as category_id
@@ -121,8 +121,8 @@ with lawyer as
          , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
          , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
       from `lawtalk-bigquery.staging_test2.betaadorders` a
-     where date(createdAt,'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
-       and date(createdAt,'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
+     where date(timestamp(createdAt),'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
+       and date(timestamp(createdAt),'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
 )
 -- 각 정보들 join하여 최종 데이터 구성
 select date(a.order_crt_dt) as b_date
@@ -132,8 +132,8 @@ select date(a.order_crt_dt) as b_date
      , c.slug
      , c.lawyer_name
      , c.manager
-     , case when array_length(a.location_id) > 0 then 'location'
-            when array_length(a.category_id) > 0 then 'category'
+     , case when array_length(a.adLocations) > 0 then 'location'
+            when array_length(a.categories) > 0 then 'category'
             else 'N/A'
        end as kind
      , d.location_id
@@ -266,7 +266,7 @@ select a.b_date
         from `lawtalk-bigquery.raw.advice` a
         left join `lawtalk-bigquery.raw.adcategories` b
           on a.adCategory = b._id
-       where date(a.createdAt,'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
+       where date(timestamp(a.createdAt),'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
   )
   , advicetransactions_base as
   ( -- advicetransactions 컬렉션에서 필요정보만 발췌
@@ -316,7 +316,7 @@ select a.b_date
                    , datetime(timestamp(updatedAt),'Asia/Seoul') as pay_upd_dt
                    , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
                 from `lawtalk-bigquery.raw.advicetransactions` a
-               where date(a.createdAt,'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
+               where date(timestamp(a.createdAt),'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
             ) a
         left join `lawtalk-bigquery.raw.adcategories` b
           on coalesce(a.context_additional,a.extra_info) = b.name
