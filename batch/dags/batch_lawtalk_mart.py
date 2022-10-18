@@ -541,7 +541,7 @@ with DAG(
             sql = '''
                   delete from `lawtalk-bigquery.mart.lt_r_lawyer_ad_sales`
                         where b_date between date('{{next_ds}}')-15 and date('{{next_ds}}')
-                           or order_id in (select distint order_id from `lawtalk-bigquery.mart.tmp_lt_r_lawyer_ad_sales`)
+                           or order_id in (select distinct order_id from `lawtalk-bigquery.mart.tmp_lt_r_lawyer_ad_sales`)
                   '''
         )
 
