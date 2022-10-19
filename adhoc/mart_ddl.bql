@@ -194,3 +194,141 @@ options
     labels=[("service","lawtalk")]
 )
 ;
+
+create table `mart.lt_r_lawyer_slot`
+(
+  b_date date options(description="기준일자")
+  , lawyer_id string options(description="변호사 ID")
+  , slug string options(description="변호사 slug")
+  , name string options(description="변호사 성명")
+  , manager string options(description="담당 BM 성명")
+  , slot_crt_dt datetime options(description="슬롯 생성 일시")
+  , slot_opened_dt datetime options(description="변호사가 오픈해 놓은 슬롯 일시")
+  , slot_day_of_week string options(description="변호사가 오픈해 놓은 슬롯 요일")
+  , kind string options(description="상담 종류")
+  , is_reserved int options(description="슬롯이 예약되었는지 여부 [예약되었으면:1, 그렇지 않으면: 0]")
+  , counsel_id string options(description="유료상담ID")
+  , counsel_crt_dt datetime options(description="상담 예약 일시")
+  , counsel_status string options(description="상담 상태")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    description="[로톡] 변호사의 상담 슬롯 오픈과 유료 상담 여부",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_w_lawyer_slot`
+(
+  b_date date options(description="기준일자")
+  , slot_day_of_week string options(description="b_date 요일")
+  , lawyer_id string options(description="변호사 ID")
+  , slug string options(description="변호사 slug")
+  , name string options(description="변호사 성명")
+  , manager string options(description="담당 BM 성명")
+  , total_slot_opened_cnt numeric options(description="전체 슬롯 오픈 수")
+  , total_slot_opened_time_cnt numeric options(description="전체 슬롯 오픈 시간 수")
+  , phone_slot_opened_cnt numeric options(description="15분 전화상담 슬롯 오픈 수")
+  , phone_reserve_cnt numeric options(description="15분 전화상담 예약 수")
+  , phone_complete_cnt numeric options(description="15분 전화상담 완료 수")
+  , video_slot_opened_cnt numeric options(description="20분 영상상담 슬롯 오픈 수")
+  , video_reserve_cnt numeric options(description="20분 영상상담 예약 수")
+  , video_complete_cnt numeric options(description="20분 영상상담 완료 수")
+  , visiting_slot_opened_cnt numeric options(description="30분 방문상담 슬롯 오픈 수")
+  , visiting_reserve_cnt numeric options(description="30분 방문상담 예약 수")
+  , visiting_complete_cnt numeric options(description="30분 방문상담 완료 수")
+)
+partition by b_date
+cluster by lawyer_id
+options
+(
+    description="[로톡] 일자별 변호사별 슬롯 오픈 및 예약 현황",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_s_user_info`
+(
+  b_date date options(description="기준일자")
+  , role string options(description="유저 구분")
+  , user_id string options(description="유저 ID")
+  , user_nickname string options(description="유저 회원 ID")
+  , user_status string options(description="유저 상태")
+  , user_email string options(description="이메일")
+  , is_non_member int options(description="비회원 여부 [비회원: 1, 회원: 0]")
+  , birth_year numeric options(description="출생년도")
+  , korean_age numeric options(description="한국 나이")
+  , sex string options(description="성별")
+  , country_code numeric options(description="국가 코드")
+  , crt_dt datetime options(description="회원가입일")
+  , upd_dt datetime options(description="유저 정보 업데이트 일시")
+  , is_email_accept int options(description="이메일 수신 동의 여부 [동의: 1, 미동의: 0]")
+  , is_email_marketing_accept int options(description="이메일 마케팅 수신 동의 여부 [동의: 1, 미동의: 0]")
+  , email_marketing_accept_end_date datetime options(description="이메일 마케팅 수신 동의 만료일")
+  , is_sms_accept int options(description="SMS 수신 동의 여부 [동의: 1, 미동의: 0]")
+  , is_sms_marketing_accept int options(description="SMS 마케팅 수신 동의 여부 [동의: 1, 미동의: 0]")
+  , sms_marketing_accept_end_date datetime options(description="SMS 마케팅 수신 동의 만료일")
+  , provider string options(description="회원가입 방법")
+  , referrer string options(description="방문경로")
+  , referrer_other string options(description="방문경로_기타")
+  , recommender_id string options(description="(변호사) 추천 변호사 ID")
+  , recommender_name string options(description="(변호사) 추천 변호사 이름")
+  , is_review_coupon boolean options(description="후기 작성 쿠폰 수령 여부 [수령: 1, 미수령: 0]")
+  , utm_source string options(description="")
+  , utm_medium string options(description="")
+  , utm_campaign string options(description="")
+  , utm_content string options(description="")
+)
+partition by b_date
+cluster by user_id, crt_dt
+options
+(
+    description="[로톡] 유저 정보 (의뢰인, 변호사, 변호사 승인대기)",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_s_qna`
+(
+  b_date date options(description="기준일자")
+  , question_id string options(description="question ID")
+  , question_number numeric options(description="온라인 상담 질문의 번호")
+  , question_title string options(description="온라인 상담 질문의 제목")
+  , question_crt_dt datetime options(description="온라인 상담 질문 작성 일시")
+  , question_upd_dt datetime options(description="온라인 상담 질문 업데이트 일시")
+  , category_id string options(description="온라인 상담 질문의 카테고리 ID")
+  , category_name string options(description="온라인 상담 질문의 카테고리명")
+  , is_kin_question int options(description="온라인 상담 질문의 지식인 노출 여부 [노출: 1, 미노출: 0]")
+  , is_kin_question_exportable int options(description="온라인 상담 질문의 지식인 노출 가능 여부 [가능: 1, 불가능: 0]")
+  , favorites_user_cnt numeric options(description="질문을 즐겨찾기한 유저 수")
+  , acc_view_cnt numeric options(description="누적 조회수")
+  , user_id string options(description="온라인 상담 질문 의뢰인 ID")
+  , user_nickname string options(description="온라인 상담 질문 의뢰인 회원 ID")
+  , user_status string options(description="의뢰인 상태")
+  , user_email string options(description="온라인 상담 질문 유저 이메일")
+  , is_answered int options(description="답변이 1개라도 달렸는지 여부 [답변 존재: 1, 미존재: 0]")
+  , recent_answer_crt_dt datetime options(description="가장 최근 답변이 달린 일시")
+  , first_answer_crt_dt datetime options(description="첫 번째 답변이 달린 일시")
+  , answer_id string options(description="answer ID")
+  , answer_number numeric options(description="온라인 상담 답변의 번호")
+  , answer_crt_dt datetime options(description="온라인 상담 답변 작성 일시")
+  , answer_upd_dt datetime options(description="온라인 상담 답변 업데이트 일시")
+  , is_kin_answer int options(description="온라인 상담 답변의 지식인 노출 여부 [노출: 1, 미노출: 0]")
+  , is_kin_answer_exportable int options(description="온라인 상담 답변의 지식인 노출 가능 여부 [가능: 1, 불가능: 0]")
+  , is_adopted int options(description="온라인 상담 답변의 채택 여부 [채택: 1, 그렇지 않으면: 0]")
+  , is_blind_answer int options(description="답변이 블라인드 상태인지 여부 [블라인드: 1, 그렇지 않으면: 0]")
+  , lawyer_id string options(description="온라인 상담 답변 변호사 ID")
+  , lawyer_slug string options(description="온라인 상담 답변 slug")
+  , lawyer_name string options(description="온라인 상담 답변 변호사 성명")
+  , manager string options(description="온라인 상담 답변 담당 BM 성명")
+)
+partition by b_date
+cluster by question_crt_dt, answer_crt_dt, lawyer_id
+options
+(
+    description="[로톡] 상담 사례 질문과 답변",
+    labels=[("service","lawtalk")]
+)
+;
