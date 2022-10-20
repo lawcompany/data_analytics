@@ -13,7 +13,7 @@ KST = pendulum.timezone("Asia/Seoul")
 with DAG(
     dag_id="shjeong_mart_dag_test",
     description ="[test] lawtalk data mart",
-    start_date = datetime(2022, 10, 19, tzinfo = KST),
+    start_date = datetime(2022, 10, 20, tzinfo = KST),
     schedule_interval = '0 5 * * *',
     tags=["shjeong","test","mart"],
     default_args={  
@@ -100,8 +100,9 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(phone_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'phone' as kind
-            ,slot_crt_dt
+            ,MAX(slot_crt_dt) slot_crt_dt
         FROM BASE, UNNEST(SPLIT(phone_times,', ')) phone_time_slot
+        GROUP BY 1,2,3
 
         UNION ALL 
 
@@ -109,8 +110,9 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'video' as kind
-            ,slot_crt_dt
+            ,MAX(slot_crt_dt) slot_crt_dt
         FROM BASE, UNNEST(SPLIT(video_times,', ')) video_time_slot
+        GROUP BY 1,2,3
 
         UNION ALL 
 
@@ -118,8 +120,9 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'visiting' as kind
-            ,slot_crt_dt
+            ,MAX(slot_crt_dt) slot_crt_dt
         FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
+        GROUP BY 1,2,3
         ) t_slot LEFT JOIN (SELECT 
                                 DATE_ADD(DATETIME(dayString), INTERVAL CAST(time AS INT) * 30 MINUTE) counsel_exc_dt
                                 ,DATETIME(createdAt,'Asia/Seoul') counsel_crt_dt
