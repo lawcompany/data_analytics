@@ -50,83 +50,83 @@ with DAG(
         sql='''
         WITH t_lawyer AS (
         SELECT
-        _id lawyer_id
-        ,CASE WHEN slug = '5e314482c781c20602690b79' AND _id = '5e314482c781c20602690b79' THEN '탈퇴한 변호사' 
-                WHEN slug = '5e314482c781c20602690b79' AND _id = '616d0c91b78909e152c36e71' THEN '미활동 변호사'
-                WHEN slug LIKE '%탈퇴한%' THEN CONCAT(slug,'(탈퇴보류)')
-                ELSE slug END slug
-        ,manager
-        ,name
+            _id lawyer_id
+            ,CASE WHEN slug = '5e314482c781c20602690b79' AND _id = '5e314482c781c20602690b79' THEN '탈퇴한 변호사' 
+                    WHEN slug = '5e314482c781c20602690b79' AND _id = '616d0c91b78909e152c36e71' THEN '미활동 변호사'
+                    WHEN slug LIKE '%탈퇴한%' THEN CONCAT(slug,'(탈퇴보류)')
+                    ELSE slug END slug
+            ,manager
+            ,name
         FROM `lawtalk-bigquery.raw.lawyers`
         WHERE REGEXP_CONTAINS(slug,r'^[0-9]{4,4}-') OR slug = '5e314482c781c20602690b79' 
         )
         , BASE AS (
         SELECT
-        lawyer
-        ,daystring
-        ,NULLIF(phone_times,'') phone_times
-        ,NULLIF(video_times,'') video_times
-        ,NULLIF(visiting_times,'') visiting_times
-        ,DATETIME(createdAt,'Asia/Seoul') slot_crt_dt
+            lawyer
+            ,daystring
+            ,NULLIF(phone_times,'') phone_times
+            ,NULLIF(video_times,'') video_times
+            ,NULLIF(visiting_times,'') visiting_times
+            ,DATETIME(createdAt,'Asia/Seoul') slot_crt_dt
         FROM `lawtalk-bigquery.raw.adviceschedules`, UNNEST(REGEXP_EXTRACT_ALL(times,r"'phone': \[(.*?)\]")) phone_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'video': \[(.*?)\]")) video_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'visiting': \[(.*?)\]")) visiting_times
         WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') + 7
         ) 
 
         SELECT 
-        DATE(slot_opened_dt) as b_date
-        ,t_slot.lawyer lawyer_id
-        ,IFNULL(slug,'탈퇴/휴면 변호사') slug
-        ,name
-        ,manager
-        ,slot_crt_dt
-        ,slot_opened_dt
-        ,EXTRACT(DATE FROM slot_opened_dt) slot_opened_date
-        ,FORMAT_DATETIME('%R', slot_opened_dt) slot_opened_time
-        ,CASE EXTRACT(DAYOFWEEK FROM slot_opened_dt) WHEN 1 THEN '일' 
-                                                    WHEN 2 THEN '월'
-                                                    WHEN 3 THEN '화'
-                                                    WHEN 4 THEN '수'
-                                                    WHEN 5 THEN '목'
-                                                    WHEN 6 THEN '금'
-                                                    WHEN 7 THEN '토' 
-        END slot_day_of_week
-        ,t_slot.kind
-        ,CASE WHEN counsel_exc_dt = slot_opened_dt THEN 1 ELSE 0 END is_reserved
-        ,t_advice._id counsel_id
-        ,counsel_crt_dt
-        ,status counsel_status
+            DATE(slot_opened_dt) as b_date
+            ,t_slot.lawyer lawyer_id
+            ,IFNULL(slug,'탈퇴/휴면 변호사') slug
+            ,name
+            ,manager
+            ,slot_crt_dt
+            ,slot_opened_dt
+            ,EXTRACT(DATE FROM slot_opened_dt) slot_opened_date
+            ,FORMAT_DATETIME('%R', slot_opened_dt) slot_opened_time
+            ,CASE EXTRACT(DAYOFWEEK FROM slot_opened_dt) WHEN 1 THEN '일' 
+                                                        WHEN 2 THEN '월'
+                                                        WHEN 3 THEN '화'
+                                                        WHEN 4 THEN '수'
+                                                        WHEN 5 THEN '목'
+                                                        WHEN 6 THEN '금'
+                                                        WHEN 7 THEN '토' 
+            END slot_day_of_week
+            ,t_slot.kind
+            ,CASE WHEN counsel_exc_dt = slot_opened_dt THEN 1 ELSE 0 END is_reserved
+            ,t_advice._id counsel_id
+            ,counsel_crt_dt
+            ,status counsel_status
         FROM (
         SELECT
-        lawyer
-        ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(phone_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
-        ,'phone' as kind
-        ,slot_crt_dt
+            lawyer
+            ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(phone_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+            ,'phone' as kind
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(phone_times,', ')) phone_time_slot
 
         UNION ALL 
 
         SELECT
-        lawyer
-        ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
-        ,'video' as kind
-        ,slot_crt_dt
+            lawyer
+            ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+            ,'video' as kind
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(video_times,', ')) video_time_slot
 
         UNION ALL 
 
         SELECT
-        lawyer
-        ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
-        ,'visiting' as kind
-        ,slot_crt_dt
+            lawyer
+            ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+            ,'visiting' as kind
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
         ) t_slot LEFT JOIN (SELECT 
-                            DATE_ADD(DATETIME(dayString), INTERVAL CAST(time AS INT) * 30 MINUTE) counsel_exc_dt
-                            ,DATETIME(createdAt,'Asia/Seoul') counsel_crt_dt
-                            ,IFNULL(kind,'phone') kind
-                            ,lawyer
-                            ,status
-                            ,_id
+                                DATE_ADD(DATETIME(dayString), INTERVAL CAST(time AS INT) * 30 MINUTE) counsel_exc_dt
+                                ,DATETIME(createdAt,'Asia/Seoul') counsel_crt_dt
+                                ,IFNULL(kind,'phone') kind
+                                ,lawyer
+                                ,status
+                                ,_id
                             FROM `raw.advice` 
                             WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
                             AND status != 'reserved') t_advice
