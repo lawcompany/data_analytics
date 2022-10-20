@@ -68,8 +68,10 @@ with DAG(
             ,NULLIF(video_times,'') video_times
             ,NULLIF(visiting_times,'') visiting_times
             ,DATETIME(createdAt,'Asia/Seoul') slot_crt_dt
+            ,ROW_NUMBER() OVER (PARTITION BY lawyer, daystring ORDER BY DATETIME(createdAt,'Asia/Seoul') DESC) rn
         FROM `lawtalk-bigquery.raw.adviceschedules`, UNNEST(REGEXP_EXTRACT_ALL(times,r"'phone': \[(.*?)\]")) phone_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'video': \[(.*?)\]")) video_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'visiting': \[(.*?)\]")) visiting_times
         WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') + 7
+        QUALIFY rn = 1
         ) 
 
         SELECT 
@@ -100,9 +102,8 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(phone_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'phone' as kind
-            ,MAX(slot_crt_dt) slot_crt_dt
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(phone_times,', ')) phone_time_slot
-        GROUP BY 1,2,3
 
         UNION ALL 
 
@@ -110,9 +111,8 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'video' as kind
-            ,MAX(slot_crt_dt) slot_crt_dt
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(video_times,', ')) video_time_slot
-        GROUP BY 1,2,3
 
         UNION ALL 
 
@@ -120,9 +120,9 @@ with DAG(
             lawyer
             ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
             ,'visiting' as kind
-            ,MAX(slot_crt_dt) slot_crt_dt
+            ,slot_crt_dt
         FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
-        GROUP BY 1,2,3
+
         ) t_slot LEFT JOIN (SELECT 
                                 DATE_ADD(DATETIME(dayString), INTERVAL CAST(time AS INT) * 30 MINUTE) counsel_exc_dt
                                 ,DATETIME(createdAt,'Asia/Seoul') counsel_crt_dt
@@ -136,7 +136,7 @@ with DAG(
                         ON t_slot.lawyer = t_advice.lawyer
                         AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
                         AND t_slot.kind = t_advice.kind
-                LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
+                LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id            
             '''
     )
 
