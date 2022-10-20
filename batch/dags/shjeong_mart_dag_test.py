@@ -134,7 +134,6 @@ with DAG(
                         AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
                         AND t_slot.kind = t_advice.kind
                 LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
-        ORDER BY 1,2,6
             '''
     )
 
