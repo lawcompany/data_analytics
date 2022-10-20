@@ -39,7 +39,7 @@ with DAG(
     delete_lt_r_lawyer_slot = BigQueryOperator(
         task_id = 'delete_lt_r_lawyer_slot',
         use_legacy_sql = False,
-        sql = "delete from `lawtalk-bigquery.mart.lt_r_lawyer_slot` where b_date between date('{{next_ds}}') -5 and date('{{next_ds}}') + 7 " ## 새벽에 변호사가 상담 슬롯을 오픈할 수 있음을 고려 +1
+        sql = "delete from `lawtalk-bigquery.mart.lt_r_lawyer_slot` where b_date between date('{{next_ds}}') -5 and date('{{next_ds}}') +7 " ## 새벽에 변호사가 상담 슬롯을 오픈할 수 있음을 고려 +1
     )
 
     insert_lt_r_lawyer_slot = BigQueryExecuteQueryOperator(
@@ -70,7 +70,7 @@ with DAG(
             ,DATETIME(createdAt,'Asia/Seoul') slot_crt_dt
             ,ROW_NUMBER() OVER (PARTITION BY lawyer, daystring ORDER BY DATETIME(createdAt,'Asia/Seoul') DESC) rn
         FROM `lawtalk-bigquery.raw.adviceschedules`, UNNEST(REGEXP_EXTRACT_ALL(times,r"'phone': \[(.*?)\]")) phone_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'video': \[(.*?)\]")) video_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'visiting': \[(.*?)\]")) visiting_times
-        WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') + 7
+        WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
         QUALIFY rn = 1
         ) 
 
@@ -140,4 +140,50 @@ with DAG(
             '''
     )
 
-start >> delete_lt_r_lawyer_slot >> insert_lt_r_lawyer_slot
+    ########################################################
+    #dataset: mart
+    #table_name: lt_w_lawyer_slot
+    #description: [로톡] 일자별 변호사별 슬롯 오픈 및 예약 현황
+    #table_type: w단 일자별 집계
+    #reprocessing date range: b_date기준 12일치 재처리(D-12 ~ D-1) : 슬롯 오픈 시 해당일자를 포함하여 D+7까지로 상담일자를 설정할 수 있고 상담일로부터 D+5까지 상담결과지 및 후기 작성이 가능하여 D+12까지 데이터 변경될 가능성 있음
+    ########################################################
+
+    delete_lt_w_lawyer_slot = BigQueryOperator(
+        task_id = 'delete_lt_w_lawyer_slot',
+        use_legacy_sql = False,
+        sql = "delete from `lawtalk-bigquery.mart.lt_w_lawyer_slot` where b_date between date('{{next_ds}}') -5 and date('{{next_ds}}') +7 " ## 새벽에 변호사가 상담 슬롯을 오픈할 수 있음을 고려 +1
+    )
+
+    insert_lt_w_lawyer_slot = BigQueryExecuteQueryOperator(
+        task_id='insert_lt_w_lawyer_slot',
+        use_legacy_sql = False,
+        destination_dataset_table='lawtalk-bigquery.mart.lt_w_lawyer_slot',
+        write_disposition = 'WRITE_APPEND',
+        sql='''
+        SELECT 
+            b_date
+            ,slot_day_of_week
+            ,lawyer_id
+            ,slug
+            ,name
+            ,manager
+            ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) total_slot_open_cnt
+            ,COUNT(DISTINCT slot_opened_dt) total_slot_opened_time_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) phone_slot_opened_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 THEN slot_opened_dt END) phone_reserve_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) phone_complete_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) video_slot_opened_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 THEN slot_opened_dt END) video_reserve_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) video_complete_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) visiting_slot_opened_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 THEN slot_opened_dt END) visiting_reserve_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) visiting_complete_cnt
+        FROM `lawtalk-bigquery.mart.lt_r_lawyer_slot` 
+        WHERE b_date BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
+        GROUP BY 1,2,3,4,5,6
+            '''
+    )
+
+
+
+start >> delete_lt_r_lawyer_slot >> insert_lt_r_lawyer_slot >> delete_lt_w_lawyer_slot >> insert_lt_w_lawyer_slot
