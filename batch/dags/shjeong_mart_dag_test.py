@@ -80,8 +80,8 @@ with DAG(
         ,manager
         ,slot_crt_dt
         ,slot_opened_dt
-        ,EXTRACT(DATE FROM slot_opened_dt) opened_slot_date
-        ,FORMAT_DATETIME('%R', slot_opened_dt) opened_slot_time
+        ,EXTRACT(DATE FROM slot_opened_dt) slot_opened_date
+        ,FORMAT_DATETIME('%R', slot_opened_dt) slot_opened_time
         ,CASE EXTRACT(DAYOFWEEK FROM slot_opened_dt) WHEN 1 THEN '일' 
                                                     WHEN 2 THEN '월'
                                                     WHEN 3 THEN '화'
