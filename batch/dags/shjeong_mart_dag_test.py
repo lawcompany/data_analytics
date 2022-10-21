@@ -167,7 +167,7 @@ with DAG(
             ,slug
             ,name
             ,manager
-            ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) total_slot_open_cnt
+            ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) total_slot_opened_cnt
             ,COUNT(DISTINCT slot_opened_dt) total_slot_opened_time_cnt
             ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) phone_slot_opened_cnt
             ,COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 THEN slot_opened_dt END) phone_reserve_cnt
