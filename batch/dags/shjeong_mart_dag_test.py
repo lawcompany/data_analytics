@@ -19,7 +19,7 @@ with DAG(
     default_args={  
         "owner": "shjeong", 
         "retries": 3,  # Task가 실패한 경우, 3번 재시도
-        "retry_delay": timedelta(minutes=3),  # 재시도하는 시간 간격은 3분
+        "retry_delay": timedelta(minutes=1),  # 재시도하는 시간 간격은 1분
     }
 ) as dag:
 
