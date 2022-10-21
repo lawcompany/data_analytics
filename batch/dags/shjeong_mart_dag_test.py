@@ -168,16 +168,16 @@ with DAG(
             ,name
             ,manager
             ,CAST(COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) + COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) AS numeric) total_slot_opened_cnt
-            ,COUNT(DISTINCT slot_opened_dt) total_slot_opened_time_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) phone_slot_opened_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 THEN slot_opened_dt END) phone_reserve_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) phone_complete_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) video_slot_opened_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 THEN slot_opened_dt END) video_reserve_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) video_complete_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) visiting_slot_opened_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 THEN slot_opened_dt END) visiting_reserve_cnt
-            ,COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) visiting_complete_cnt
+            ,CAST(COUNT(DISTINCT slot_opened_dt) AS numeric) total_slot_opened_time_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'phone' THEN slot_opened_dt END) AS numeric) phone_slot_opened_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 THEN slot_opened_dt END) AS numeric) phone_reserve_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'phone' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) AS numeric) phone_complete_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'video' THEN slot_opened_dt END) AS numeric) video_slot_opened_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 THEN slot_opened_dt END) AS numeric) video_reserve_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'video' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) AS numeric) video_complete_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) AS numeric) visiting_slot_opened_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 THEN slot_opened_dt END) AS numeric) visiting_reserve_cnt
+            ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) AS numeric) visiting_complete_cnt
         FROM `lawtalk-bigquery.mart.lt_r_lawyer_slot` 
         WHERE b_date BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
         GROUP BY 1,2,3,4,5,6
