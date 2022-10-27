@@ -44,7 +44,7 @@ with DAG(
             sql = "delete from `lawtalk-bigquery.mart.lt_r_lawyer_slot` where b_date between date('{{next_ds}}') -5 and date('{{next_ds}}') +7 " ## 새벽에 변호사가 상담 슬롯을 오픈할 수 있음을 고려 +1
         )
 
-        # batch_lawtalk_mart DAG의 lt_s_lawyer_info 실행을 기다리는 task
+        # batch_lawtalk_mart DAG의 lt_r_user_pay_counsel 실행을 기다리는 task
         wait_for_lt_r_user_pay_counsel = ExternalTaskSensor(
             task_id = "wait_for_lt_r_user_pay_counsel",
             external_dag_id = "batch_lawtalk_mart",
