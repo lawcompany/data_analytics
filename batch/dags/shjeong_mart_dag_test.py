@@ -225,11 +225,11 @@ with DAG(
                 ,role
                 ,_id user_id
                 ,username user_nickname
-                ,CASE WHEN _id = '620a0996ee8c9876d5f62d6a' OR slug = '탈퇴한 변호사' THEN '탈퇴' OR role = 'secession' THEN '탈퇴'
-                        WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
-                        WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
-                        WHEN role = 'lawyer_waiting' THEN '승인 대기'
-                        ELSE '활동'
+                ,CASE WHEN _id = '620a0996ee8c9876d5f62d6a' OR slug = '탈퇴한 변호사' OR role = 'secession' THEN '탈퇴'
+                      WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
+                      WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
+                      WHEN role = 'lawyer_waiting' THEN '승인 대기'
+                      ELSE '활동'
                 END user_status
                 ,email user_email
                 ,CASE isNonMember WHEN 'True' THEN 1 ELSE 0 END is_non_member
