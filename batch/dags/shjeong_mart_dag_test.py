@@ -143,7 +143,7 @@ with DAG(
                                     ,lawyer_id
                                     ,counsel_status
                                     ,counsel_id
-                                FROM `raw.advice` 
+                                FROM `lawtalk-bigquery.mart.lt_r_user_pay_counsel` 
                                 WHERE DATE(counsel_exc_dt) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
                                 AND counsel_status != 'reserved') t_advice
                             ON t_slot.lawyer = t_advice.lawyer_id
