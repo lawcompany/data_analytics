@@ -503,7 +503,7 @@ with DAG(
         SELECT
             b_date
             ,question_id
-            ,question_number
+            ,CAST(question_number as numeric) question_number
             ,question_title
             ,question_crt_dt
             ,question_upd_dt
@@ -511,8 +511,8 @@ with DAG(
             ,category_name
             ,is_kin_question
             ,is_kin_question_exportable
-            ,favorites_user_cnt
-            ,acc_view_cnt
+            ,CAST(favorites_user_cnt as numeric) favorites_user_cnt
+            ,CAST(acc_view_cnt as numeric) acc_view_cnt
             ,user_id
             ,user_nickname
             ,user_status
@@ -521,7 +521,7 @@ with DAG(
             ,MIN(answer_crt_dt) OVER (PARTITION BY question_id) first_answer_crt_dt
             ,MAX(answer_crt_dt) OVER (PARTITION BY question_id) recent_answer_crt_dt
             ,answer_id
-            ,answer_number
+            ,CAST(answer_number as numeric) answer_number
             ,answer_crt_dt
             ,answer_upd_dt
             ,is_kin_answer
