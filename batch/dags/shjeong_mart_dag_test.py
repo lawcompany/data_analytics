@@ -44,6 +44,20 @@ with DAG(
             sql = "delete from `lawtalk-bigquery.mart.lt_r_lawyer_slot` where b_date between date('{{next_ds}}') -5 and date('{{next_ds}}') +7 " ## 새벽에 변호사가 상담 슬롯을 오픈할 수 있음을 고려 +1
         )
 
+        # batch_lawtalk_mart DAG의 lt_s_lawyer_info 실행을 기다리는 task
+        wait_for_lt_r_user_pay_counsel = ExternalTaskSensor(
+            task_id = "wait_for_lt_r_user_pay_counsel",
+            external_dag_id = "batch_lawtalk_mart",
+            external_task_id = "insert_lt_r_user_pay_counsel",
+            allowed_states = ['success'],
+            failed_states = None,
+            execution_delta = None,
+            execution_date_fn = None,
+            check_existence = False,
+            timeout = 600
+        )
+
+
         insert_lt_r_lawyer_slot = BigQueryExecuteQueryOperator(
             task_id='insert_lt_r_lawyer_slot',
             use_legacy_sql = False,
@@ -52,15 +66,12 @@ with DAG(
             sql='''
             WITH t_lawyer AS (
             SELECT
-                _id lawyer_id
-                ,CASE WHEN slug = '5e314482c781c20602690b79' AND _id = '5e314482c781c20602690b79' THEN '탈퇴한 변호사' 
-                        WHEN slug = '5e314482c781c20602690b79' AND _id = '616d0c91b78909e152c36e71' THEN '미활동 변호사'
-                        WHEN slug LIKE '%탈퇴한%' THEN CONCAT(slug,'(탈퇴보류)')
-                        ELSE slug END slug
+                lawyer_id
+                ,slug
+                ,lawyer_name
                 ,manager
-                ,name
-            FROM `lawtalk-bigquery.raw.lawyers`
-            WHERE REGEXP_CONTAINS(slug,r'^[0-9]{4,4}-') OR slug = '5e314482c781c20602690b79' 
+            FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
+            WHERE b_date = date('{{next_ds}}')
             )
             , BASE AS (
             SELECT
@@ -80,7 +91,7 @@ with DAG(
                 DATE(slot_opened_dt) as b_date
                 ,t_slot.lawyer lawyer_id
                 ,IFNULL(slug,'탈퇴/휴면 변호사') slug
-                ,name
+                ,lawyer_name
                 ,manager
                 ,slot_crt_dt
                 ,slot_opened_dt
@@ -96,9 +107,9 @@ with DAG(
                 END slot_day_of_week
                 ,t_slot.kind
                 ,CASE WHEN counsel_exc_dt = slot_opened_dt THEN 1 ELSE 0 END is_reserved
-                ,t_advice._id counsel_id
+                ,t_advice.counsel_id
                 ,counsel_crt_dt
-                ,status counsel_status
+                ,counsel_status
             FROM (
             SELECT
                 lawyer
@@ -126,20 +137,20 @@ with DAG(
             FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
 
             ) t_slot LEFT JOIN (SELECT 
-                                    DATE_ADD(DATETIME(dayString), INTERVAL CAST(time AS INT) * 30 MINUTE) counsel_exc_dt
-                                    ,DATETIME(createdAt,'Asia/Seoul') counsel_crt_dt
-                                    ,IFNULL(kind,'phone') kind
-                                    ,lawyer
-                                    ,status
-                                    ,_id
+                                    counsel_exc_dt
+                                    ,counsel_crt_dt
+                                    ,kind
+                                    ,lawyer_id
+                                    ,counsel_status
+                                    ,counsel_id
                                 FROM `raw.advice` 
-                                WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
-                                AND status != 'reserved') t_advice
-                            ON t_slot.lawyer = t_advice.lawyer
+                                WHERE DATE(counsel_exc_dt) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
+                                AND counsel_status != 'reserved') t_advice
+                            ON t_slot.lawyer = t_advice.lawyer_id
                             AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
                             AND t_slot.kind = t_advice.kind
-                    LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id            
-                '''
+                    LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
+                    '''
         )
 
         ########################################################
@@ -185,7 +196,7 @@ with DAG(
             GROUP BY 1,2,3,4,5,6
                 '''
         )
-        delete_lt_r_lawyer_slot >> insert_lt_r_lawyer_slot >> delete_lt_w_lawyer_slot >> insert_lt_w_lawyer_slot
+        delete_lt_r_lawyer_slot >> wait_for_lt_r_user_pay_counsel >> insert_lt_r_lawyer_slot >> delete_lt_w_lawyer_slot >> insert_lt_w_lawyer_slot
     
 
     with TaskGroup('group_user_info') as group_user_info:
@@ -210,14 +221,13 @@ with DAG(
             write_disposition = 'WRITE_APPEND',
             sql='''
             WITH t_lawyer AS (
-            SELECT
-                _id lawyer_id
-                ,CASE WHEN slug = '5e314482c781c20602690b79' AND _id = '5e314482c781c20602690b79' THEN '탈퇴한 변호사' 
-                        WHEN slug = '5e314482c781c20602690b79' AND _id = '616d0c91b78909e152c36e71' THEN '미활동 변호사'
-                        WHEN slug LIKE '%탈퇴한%' THEN CONCAT(slug,'(탈퇴보류)')
-                        ELSE slug END slug
-            FROM `lawtalk-bigquery.raw.lawyers`
-            WHERE REGEXP_CONTAINS(slug,r'^[0-9]{4,4}-') OR slug = '5e314482c781c20602690b79' 
+                SELECT
+                lawyer_id
+                ,slug
+                ,lawyer_name
+                ,manager
+                FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
+                WHERE b_date = date('{{next_ds}}')
             )
             , BASE AS (
             SELECT 
@@ -226,15 +236,15 @@ with DAG(
                 ,_id user_id
                 ,username user_nickname
                 ,CASE WHEN _id = '620a0996ee8c9876d5f62d6a' OR slug = '탈퇴한 변호사' OR role = 'secession' THEN '탈퇴'
-                      WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
-                      WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
-                      WHEN role = 'lawyer_waiting' THEN '승인 대기'
-                      ELSE '활동'
+                        WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
+                        WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
+                        WHEN role = 'lawyer_waiting' THEN '승인 대기'
+                        ELSE '활동'
                 END user_status
                 ,email user_email
                 ,CASE isNonMember WHEN 'True' THEN 1 ELSE 0 END is_non_member
                 ,EXTRACT(year FROM birth) birth_year
-                ,EXTRACT(year FROM CURRENT_DATE('Asia/Seoul')) - EXTRACT(year FROM birth) + 1 korean_age
+                ,EXTRACT(year FROM date('{{next_ds}}')) - EXTRACT(year FROM birth) + 1 korean_age
                 ,sex
                 ,countryCode country_code
                 ,DATETIME(createdAt,'Asia/Seoul') crt_dt
@@ -261,7 +271,6 @@ with DAG(
                 ,REGEXP_EXTRACT(utm, r"'utm_campaign': '(.*?)'") utm_campaign
                 ,REGEXP_EXTRACT(utm, r"'utm_content': '(.*?)'") utm_content
             FROM `raw.users` LEFT JOIN t_lawyer ON `raw.users`.lawyer = t_lawyer.lawyer_id
-            -- WHERE role IN ('lawyer', 'user', 'lawyer-waiting') 
             )
 
             , t_sms_marketing AS (
@@ -473,7 +482,7 @@ with DAG(
             ,user_status
             ,user_email
         FROM t_question_users LEFT JOIN t_question_cat USING (question_id)
-                            LEFT JOIN t_favorites_user USING (question_id)
+                              LEFT JOIN t_favorites_user USING (question_id)
         )
 
         , t_answer_base AS (

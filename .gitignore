@@ -5,3 +5,4 @@
 __pycache__
 .ipynb_checkpoints
 lawtalk-bigquery-*.json
+batch/dags/shjeong_mart_dag_new.py
