@@ -384,12 +384,13 @@ with DAG(
     wait_for_lt_s_lawyer_info = ExternalTaskSensor(
         task_id = "wait_for_lt_s_lawyer_info",
         external_dag_id = "batch_lawtalk_mart",
-        external_task_id = "lt_s_lawyer_info",
+        external_task_id = "insert_lt_s_lawyer_info",
         allowed_states = ['success'],
         failed_states = None,
         execution_delta = None,
         execution_date_fn = None,
         check_existence = False,
+        timeout = 600
     )
 
     insert_lt_s_qna = BigQueryExecuteQueryOperator(
