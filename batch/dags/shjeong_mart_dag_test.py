@@ -48,8 +48,8 @@ with DAG(
         wait_for_lt_r_user_pay_counsel = ExternalTaskSensor(
             task_id = "wait_for_lt_r_user_pay_counsel",
             external_dag_id = "batch_lawtalk_mart",
-            external_task_group_id = "group_lawyer",
-            external_task_id = "insert_lt_r_user_pay_counsel",
+            # external_task_group_id = "group_lawyer",
+            external_task_id = "group_lawyer.insert_lt_r_user_pay_counsel",
             allowed_states = ['success'],
             failed_states = None,
             execution_delta = None,
