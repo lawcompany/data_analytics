@@ -9,7 +9,7 @@ with lawyer as
                 when slug like '%탈퇴한%' then concat(slug,'(탈퇴보류)')
                 else slug
            end as slug
-      from `lawtalk-bigquery.staging_test2.lawyers`
+      from `lawtalk-bigquery.lt_src.lawyers`
      where role = 'lawyer'
 )
 , adorders_base as
@@ -27,7 +27,7 @@ with lawyer as
          , case when json_value(autoExtendTerm.status)='on' then 1 else 0 end as is_auto_extend
          , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
          , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
-      from `lawtalk-bigquery.staging_test2.adorders`
+      from `lawtalk-bigquery.lt_src.adorders`
      where (( date(timestamp(createdAt),'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
        and date(timestamp(createdAt),'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}') )
         or date(timestamp(updatedAt),'Asia/Seoul') = date('{{next_ds}}'))
@@ -63,11 +63,11 @@ with lawyer as
             from adorders_base a,
                  unnest(adLocations) as b
       ) a
-      left join `lawtalk-bigquery.staging_test2.adlocations` b
+      left join `lawtalk-bigquery.lt_src.adlocations` b
         on a.location_id = b._id
-      left join `lawtalk-bigquery.staging_test2.adlocationgroups` c
+      left join `lawtalk-bigquery.lt_src.adlocationgroups` c
         on b.adLocationGroup = c._id
-      left join `lawtalk-bigquery.staging_test2.adlocationcategories` d
+      left join `lawtalk-bigquery.lt_src.adlocationcategories` d
         on c.adLocationCategory = d._id
       group by a.order_id
              , b.adLocationGroup
@@ -87,7 +87,7 @@ with lawyer as
             from adorders_base a,
                  unnest(categories) as b
       ) a
-      left join `lawtalk-bigquery.staging_test2.adcategories` b
+      left join `lawtalk-bigquery.lt_src.adcategories` b
         on a.category_id = b._id
 )
 , adpayments_base as
@@ -104,7 +104,7 @@ with lawyer as
          , datetime(timestamp(updatedAt),'Asia/Seoul') as pay_upd_dt
          , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
          , order_id
-      from `lawtalk-bigquery.staging_test2.adpayments` a
+      from `lawtalk-bigquery.lt_src.adpayments` a
          , unnest(json_value_array(orders)) as order_id
 )
 , betaadorders_base as
@@ -120,7 +120,7 @@ with lawyer as
          , datetime(timestamp(safe_cast(json_value(term.endAt) as datetime)),'Asia/Seoul') as ad_end_dt
          , datetime(timestamp(createdAt),'Asia/Seoul') as order_crt_dt
          , datetime(timestamp(updatedAt),'Asia/Seoul') as order_upd_dt
-      from `lawtalk-bigquery.staging_test2.betaadorders` a
+      from `lawtalk-bigquery.lt_src.betaadorders` a
      where date(timestamp(createdAt),'Asia/Seoul') >= date('2022-06-16') -- 분야개편 이후
        and date(timestamp(createdAt),'Asia/Seoul') between date('{{next_ds}}')-15 and date('{{next_ds}}')
 )
@@ -230,7 +230,7 @@ select a.b_date
                   when slug like '%탈퇴한%' then concat(slug,'(탈퇴보류)')
                   else slug
              end as slug
-        from `lawtalk-bigquery.raw.lawyers`
+        from `lawtalk-bigquery.lt_src.lawyers`
        where role = 'lawyer'
   )
   , user as
@@ -239,7 +239,7 @@ select a.b_date
            , email as user_email
            , username as user_nickname
            , username as user_name
-        from `lawtalk-bigquery.raw.users`
+        from `lawtalk-bigquery.lt_src.users`
   )
   , advice_base as
   ( -- advice 컬렉션에서 필요정보만 발췌
@@ -263,8 +263,8 @@ select a.b_date
            , json_value(a.review.title) as user_review_title
            , json_value(a.review.body) as user_review_body
            , json_value(cancelInfo.adviceCancelCode) as counsel_cancel_code
-        from `lawtalk-bigquery.raw.advice` a
-        left join `lawtalk-bigquery.raw.adcategories` b
+        from `lawtalk-bigquery.lt_src.advice` a
+        left join `lawtalk-bigquery.lt_src.adcategories` b
           on a.adCategory = b._id
        where date(timestamp(a.createdAt),'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
   )
@@ -315,12 +315,12 @@ select a.b_date
                    , datetime(timestamp(createdAt),'Asia/Seoul') as pay_crt_dt
                    , datetime(timestamp(updatedAt),'Asia/Seoul') as pay_upd_dt
                    , datetime(timestamp(safe_cast(json_value(canceled.at) as datetime)),'Asia/Seoul') as pay_canc_dt
-                from `lawtalk-bigquery.raw.advicetransactions` a
+                from `lawtalk-bigquery.lt_src.advicetransactions` a
                where date(timestamp(a.createdAt),'Asia/Seoul') between date('{{next_ds}}')-11 and date('{{next_ds}}')
             ) a
-        left join `lawtalk-bigquery.raw.adcategories` b
+        left join `lawtalk-bigquery.lt_src.adcategories` b
           on coalesce(a.context_additional,a.extra_info) = b.name
-        left join `lawtalk-bigquery.raw.adlocationgroups` c
+        left join `lawtalk-bigquery.lt_src.adlocationgroups` c
           on coalesce(a.context_additional,a.extra_info) = c.name
   )
   select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
@@ -372,56 +372,521 @@ select a.b_date
       on coalesce(b.lawyer_id,a.lawyer_id,'') = c.lawyer_id
     left join user d
       on coalesce(b.user_id,a.user_id,'') = d.user_id
-    left join `lawtalk-bigquery.raw.advicecancelcodes` e
+    left join `lawtalk-bigquery.lt_src.advicecancelcodes` e
       on a.counsel_cancel_code = e._id
     ;
 
 
 
-    select 'adcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adcategories` union all
-    select 'adcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adcoupons` union all
-    select 'adkeywords' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adkeywords` union all
-    select 'adlocationcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocationcategories` union all
-    select 'adlocationgroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocationgroups` union all
-    select 'adlocations' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adlocations` union all
-    select 'adorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adorders` union all
-    select 'adpayments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adpayments` union all
-    select 'adproductoptions' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adproductoptions` union all
-    select 'adproducts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adproducts` union all
-    select 'adsubscriptions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adsubscriptions` union all
-    select 'adtypes' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adtypes` union all
-    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advice` union all
-    select 'advicecancelcodes' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecancelcodes` union all
-    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecoupons` union all
-    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adviceschedules` union all
-    select 'advicetransaction' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicetransaction` union all
-    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answerbodies` union all
-    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answercomments` union all
-    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answers` union all
-    select 'betaadorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.betaadorders` union all
-    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.callevents` union all
-    select 'categorygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.categorygroups` union all
-    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.clientevaluations` union all
-    select 'expertise' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.expertise` union all
-    select 'highlighttaglogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.highlighttaglogs` union all
-    select 'highlighttags' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.highlighttags` union all
-    select 'keywordcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.keywordcoupons` union all
-    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyerranks` union all
-    select 'lawyers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyers` union all
-    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.logs` union all
-    select 'notifytalklogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.notifytalklogs` union all
-    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.posts` union all
-    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.questions` union all
-    select 'surveycategories' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveycategories` union all
-    select 'surveygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveygroups` union all
-    select 'surveyquestions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveyquestions` union all
-    select 'surveyresults' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.surveyresults` union all
-    select 'usercouponbooks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.usercouponbooks` union all
-    select 'users' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.users` union all
-    select 'videoactivities' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videoactivities` union all
-    select 'videocategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videocategories` union all
-    select 'videos' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.videos` union all
-    select 'visiblecloudtypehistories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.visiblecloudtypehistories`
+    insert into `mart_tmp.lt_s_lawyer_ads`
+                    with pause_lawyer as
+                    ( -- 광고 일시정지 중인 변호사의 광고 리스트 발췌
+                        select distinct lawyer_id as lawyer_id
+                             , order_id
+                          from `lawtalk-bigquery.mart_tmp.lt_r_lawyer_ad_sales` a
+                             , unnest(pause_start_dt) as pause_start_dt with offset as pos1
+                             , unnest(pause_end_dt) as pause_end_dt with offset as pos2
+                         where pos1 = pos2
+                           and date('2022-10-29') between date(pause_start_dt) and date(pause_end_dt)
+                    )
+                    select date('2022-10-29') as b_date
+                         , a.lawyer_id
+                         , a.slug
+                         , a.lawyer_name
+                         , a.manager
+                         , a.kind
+                         , case when a.kind='location' then a.location_group_id else a.category_id end as ad_id
+                         , case when a.kind='location' then a.location_group_name else a.category_name end as ad_name
+                         , sum(case when c._id is not null then 1 else 0 end) as is_free
+                      from `lawtalk-bigquery.mart_tmp.lt_r_lawyer_ad_sales` a
+                      left join pause_lawyer b
+                        on a.lawyer_id = b.lawyer_id
+                       and a.order_id = b.order_id
+                      left join
+                         (
+                            select distinct _id, campaign
+                              from `lawtalk-bigquery.lt_src.adcoupons`
+                             where campaign = '분야프로모션_분야한개무료광고_자동생성'
+                         ) c
+                        on a.coupon_id = c._id
+                     where (a.kind = 'plus' or a.pay_status = 'paid')
+                       and a.order_status = 'apply'
+                       and date('2022-10-29') between date(a.ad_start_dt) and date(a.ad_end_dt)
+                       and b.lawyer_id is null
+                     group by 1,2,3,4,5,6,7,8 -- 20221012 by jungarui 무료광고 체크 시 중복건 발생 확인하여 수정
+                     ;
+
+    insert into `mart_tmp.lt_w_lawyer_counsel`
+                    -- 유저가 입력한 키워드 기준의 분야 (키워드에 다중 카테고리가 매칭될 수 있음 그럴 경우 1/n 분배)
+                    select a.b_date
+                         , a.lawyer_id
+                         , a.slug
+                         , a.lawyer_name
+                         , a.manager
+                         , 'keyword' as cat_mapping_standard
+                         , coalesce(b._id, c._id, 'N/A') as category_id
+                         , a.cat as category_name
+                         , sum(case when a.kind='phone' then a.counsel_cnt end) as phone_cnt
+                         , sum(case when a.kind='phone' then a.counsel_price end) as phone_price
+                         , sum(case when a.kind='video' then a.counsel_cnt end) as video_cnt
+                         , sum(case when a.kind='video' then a.counsel_price end) as video_price
+                         , sum(case when a.kind='visiting' then a.counsel_cnt end) as visiting_cnt
+                         , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
+                      from
+                          (
+                            select date(a.counsel_exc_dt) as b_date
+                                 , a.lawyer_id
+                                 , a.slug
+                                 , a.lawyer_name
+                                 , a.manager
+                                 , cat
+                                 , a.counsel_id
+                                 , a.kind
+                                 , safe_cast(1/array_length(split(a.context_additional, ',')) as numeric) as counsel_cnt
+                                 , safe_cast(a.origin_fee * (1/array_length(split(a.context_additional, ','))) as numeric) as counsel_price
+                              from `lawtalk-bigquery.mart_tmp.lt_r_user_pay_counsel` a
+                                 , unnest(split(a.context_additional, ',')) as cat
+                             where a.b_date >='2022-06-16'
+                               and a.b_date between date('2022-10-29')-11 and date('2022-10-29')
+                               and date(a.counsel_exc_dt) between date('2022-10-29')-5 and date('2022-10-29')
+                               and a.counsel_status = 'complete'
+                          ) a
+                      left join `lawtalk-bigquery.lt_src.adcategories` b
+                        on a.cat = b.name
+                      left join `lawtalk-bigquery.lt_src.adlocationgroups` c
+                        on a.cat = c.name
+                     group by a.b_date
+                            , a.lawyer_id
+                            , a.slug
+                            , a.lawyer_name
+                            , a.manager
+                            , coalesce(b._id, c._id, 'N/A')
+                            , a.cat
+                    union all
+                    -- 변호사가 입력한 분야
+                    select date(a.counsel_exc_dt) as b_date
+                         , a.lawyer_id
+                         , a.slug
+                         , a.lawyer_name
+                         , a.manager
+                         , 'category' as cat_mapping_standard
+                         , a.category_id
+                         , a.category_name
+                         , sum(case when a.kind='phone' then 1 end) as phone_cnt
+                         , sum(case when a.kind='phone' then a.origin_fee end) as phone_price
+                         , sum(case when a.kind='video' then 1 end) as video_cnt
+                         , sum(case when a.kind='video' then a.origin_fee end) as video_price
+                         , sum(case when a.kind='visiting' then 1 end) as visiting_cnt
+                         , sum(case when a.kind='visiting' then a.origin_fee end) as visiting_price
+                      from `lawtalk-bigquery.mart_tmp.lt_r_user_pay_counsel` a
+                     where a.b_date >='2022-06-16'
+                       and a.b_date between date('2022-10-29')-11 and date('2022-10-29')
+                       and date(a.counsel_exc_dt) between date('2022-10-29')-5 and date('2022-10-29')
+                       and a.counsel_status = 'complete'
+                     group by date(a.counsel_exc_dt)
+                            , a.lawyer_id
+                            , a.slug
+                            , a.lawyer_name
+                            , a.manager
+                            , a.category_id
+                            , a.category_name
+                            ;
+
+
+    insert into `mart_tmp.lt_s_lawyer_info`
+                with all_lawyer as
+                (
+                    select distinct a.*
+                         , b.adLocationGroup as address_location_id
+                         , c.name as address_location_name
+                      from
+                      (
+                        select b._id as lawyer_id
+                             , b.name as lawyer_name
+                             , case when b.slug = '5e314482c781c20602690b79' and b._id = '5e314482c781c20602690b79' then '탈퇴한 변호사'
+                                    when b.slug = '5e314482c781c20602690b79' and b._id = '616d0c91b78909e152c36e71' then '미활동 변호사'
+                                    when b.slug like '%탈퇴한%' then concat(b.slug,'(탈퇴보류)')
+                                    else slug
+                               end as slug
+                             , b.manager
+                             , b.role as lawyer_role
+                             , a.role as user_role
+                             , case when b.role = 'lawyer' and a.role = 'lawyer' then 1 else 0 end as is_approved
+                             , case when b.role = 'lawyer-waiting' and a.role = 'lawyer-waiting' then 1 else 0 end as is_waiting
+                             --, b.flag
+                             --, b.writeRate
+                             , lower(json_value(b.flag.activation)) as act_char
+                             , case when lower(json_value(b.flag.activation)) = 'true' then 1 else 0 end as is_act
+                             , lower(json_value(b.flag.holdWithdrawal)) as hold_char
+                             , case when lower(json_value(b.flag.holdWithdrawal)) = 'true' then 1 else 0 end as is_hold
+                             , safe_cast(json_value(b.writeRate.percentage) as int64) as full_num
+                             , case when safe_cast(json_value(b.writeRate.percentage) as int64) >= 100 then 1 else 0 end as is_full
+                             --, b.address
+                             , json_value(b.address.level2) as location2
+                             , json_value(b.address.level1) as location1
+                             , safe_cast(json_value(b.adviceFee.phone) as numeric) as counsel_phone_fee
+                             , safe_cast(json_value(b.adviceFee.video) as numeric) as counsel_video_fee
+                             , safe_cast(json_value(b.adviceFee.visiting) as numeric) as counsel_visiting_fee
+                             , date(timestamp(birth),'Asia/Seoul') as birth
+                             , company
+                             , sex
+                             , json_value(b.examination.body) as exam
+                             , json_value(b.examination.year) as exam_round
+                             , json_value(b.examination.trainingInstitute) as exam_generation
+                             , safe_cast(examYear as int64) as exam_year
+                             , datetime(timestamp(b.createdAt),'Asia/Seoul') as crt_dt
+                          from `lawtalk-bigquery.lt_src.lawyers` b
+                          left join
+                            (
+                                select lawyer, role
+                                from `lawtalk-bigquery.lt_src.users`
+                                where lawyer is not null
+                                and role in ('lawyer','lawyer-waiting')
+                            ) a
+                           on b._id = a.lawyer
+                          and b.role = a.role
+                        ) a
+                     left join `lawtalk-bigquery.lt_src.adlocations` b
+                       on a.location2 = b.address
+                       or a.location1 = b.address
+                     left join `lawtalk-bigquery.lt_src.adlocationgroups` c
+                       on b.adLocationGroup = c._id
+                )
+                , ads_lawyer_info as
+                (
+                  select a.lawyer_id
+                       , a.lawyer_name
+                       , count(distinct(case when a.kind = 'category' then a.ad_id end)) as category_ad_cnt
+                       , count(distinct(case when a.kind = 'location' then a.ad_id end)) as location_ad_cnt
+                       , count(distinct(case when a.kind = 'plus' then a.ad_id end)) as plus_ad_cnt
+                       , count(distinct(case when a.is_free=1 then a.ad_id end)) as free_category_ad_cnt
+                    from `lawtalk-bigquery.mart_tmp.lt_s_lawyer_ads` a
+                   where b_date = date('2022-10-29') -- 20221002 added by LJA
+                   group by a.lawyer_id
+                          , a.lawyer_name
+                )
+                , yesterday_lawyer_info as
+                (
+                    select *
+                      from `lawtalk-bigquery.mart_tmp.lt_s_lawyer_info`
+                     where b_date = date('2022-10-29') - 1
+                )
+                , acc_review_cnt as
+                (
+                    select lawyer_id
+                         , count(distinct counsel_id) as acc_review_cnt
+                      from `lawtalk-bigquery.mart_tmp.lt_r_user_pay_counsel`
+                     where user_review_dt is not null
+                     group by lawyer_id
+                )
+                , acc_qna_cnt as
+                (
+                    select lawyer as lawyer_id
+                         , count(distinct _id) as acc_qna_cnt
+                      from `lawtalk-bigquery.lt_src.answers`
+                     group by lawyer
+                )
+                , acc_post_cnt as
+                (
+                    select lawyer as lawyer_id
+                         , count(distinct _id) as acc_post_cnt
+                      from `lawtalk-bigquery.lt_src.posts`
+                     group by lawyer
+                )
+                , acc_legaltip_cnt as
+                (
+                    select lawyer as lawyer_id
+                         , count(distinct _id) as acc_legaltip_cnt
+                      from `lawtalk-bigquery.lt_src.videos`
+                     group by lawyer
+                )
+                , acc_counsel_cnt as
+                (
+                    select lawyer_id
+                         , count(distinct counsel_id) as acc_counsel_cnt
+                      from `lawtalk-bigquery.mart_tmp.lt_r_user_pay_counsel`
+                     where pay_status = 'paid'
+                     group by lawyer_id
+                )
+                , acc_050call_cnt as
+                (
+                    select lawyer as lawyer_id
+                         , count(distinct _id) as acc_050call_cnt
+                      from `lawtalk-bigquery.lt_src.callevents`
+                     where duration >= 60
+                       and type = 'profile' -- 20220930 added
+                     group by lawyer
+                )
+                select date('2022-10-29') as b_date
+                     , coalesce(a.lawyer_id, b.lawyer_id) as lawyer_id
+                     , coalesce(a.slug, b.slug) as slug
+                     , coalesce(a.lawyer_name, b.lawyer_name) as lawyer_name
+                     , coalesce(a.manager, b.manager) as manager
+                     , coalesce(a.is_approved, b.is_approved) as is_approved
+                     , coalesce(a.is_opened, b.is_opened) as is_opened
+                     , coalesce(a.is_ad, b.is_ad) as is_ad
+                     , coalesce(a.paid_kind, b.paid_kind) as paid_kind
+                     , coalesce(a.is_paused, b.is_paused) as is_paused
+                     , coalesce(a.is_fully_profile, b.is_fully_profile) as is_fully_profile
+                     , case when b.lawyer_id is not null and a.lawyer_id is null then 1 else 0 end as is_resting -- 전일자엔 변호사 정보가 있는데 당일자엔 없다면 휴면처리가 되어 센티널로 넘어갔다고 볼 수 있음
+                     , coalesce(a.is_category_ad, b.is_category_ad) as is_category_ad
+                     , coalesce(a.is_location_ad, b.is_location_ad) as is_location_ad
+                     , coalesce(a.is_plus_ad, b.is_plus_ad) as is_plus_ad
+                     , coalesce(a.category_ad_cnt, b.category_ad_cnt) as category_ad_cnt
+                     , coalesce(a.location_ad_cnt, b.location_ad_cnt) as location_ad_cnt
+                     , coalesce(a.plus_ad_cnt, b.plus_ad_cnt) as plus_ad_cnt
+                     , coalesce(a.address_location_id, b.address_location_id) as address_location_id
+                     , coalesce(a.address_location_name, b.address_location_name) as address_location_name
+                     , coalesce(a.counsel_phone_fee, b.counsel_phone_fee) as counsel_phone_fee
+                     , coalesce(a.counsel_video_fee, b.counsel_video_fee) as counsel_video_fee
+                     , coalesce(a.counsel_visiting_fee, b.counsel_visiting_fee) as counsel_visiting_fee
+                     , coalesce(a.birth, b.birth) as birth
+                     , coalesce(a.company, b.company) as company
+                     , coalesce(a.sex, b.sex) as sex
+                     , coalesce(a.exam, b.exam) as exam
+                     , coalesce(a.exam_round, b.exam_round) as exam_round
+                     , coalesce(a.exam_generation, b.exam_generation) as exam_generation
+                     , coalesce(a.exam_year, b.exam_year) as exam_year
+                     , coalesce(a.acc_review_cnt, b.acc_review_cnt) as acc_review_cnt
+                     , coalesce(a.acc_qna_cnt, b.acc_qna_cnt) as acc_qna_cnt
+                     , coalesce(a.acc_post_cnt, b.acc_post_cnt) as acc_post_cnt
+                     , coalesce(a.acc_legaltip_cnt, b.acc_legaltip_cnt) as acc_legaltip_cnt
+                     , coalesce(a.acc_counsel_cnt, b.acc_counsel_cnt) as acc_counsel_cnt
+                     , coalesce(a.acc_050call_cnt, b.acc_050call_cnt) as acc_050call_cnt
+                     , coalesce(a.crt_dt, b.crt_dt) as crt_dt
+                  from
+                  (
+                    select a.lawyer_id
+                         , a.slug
+                         , a.lawyer_name
+                         , a.manager
+                         , case when a.is_approved=1 then 1 -- 회원 승인
+                                when a.is_waiting=1 then 0 -- 회원 미승인
+                                else null -- 비정상 데이터
+                           end as is_approved
+                         , case when a.is_approved=1 and a.is_act = 1 and a.is_hold = 0 and a.is_full = 1 then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_opened -- 공개/비공개 여부
+                         , case when a.is_approved=1 and b.lawyer_id is not null then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_ad -- 광고/비광고 여부
+                         , case when a.is_approved=1 and b.category_ad_cnt+b.location_ad_cnt=1 and b.free_category_ad_cnt=1 and b.plus_ad_cnt=0 then 'free'
+                                when a.is_approved=1 and b.lawyer_id is not null then 'paid'
+                           end as paid_kind
+                         , case when a.is_approved=1 and (a.is_act = 0 or a.is_hold = 1) then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_paused -- 일시정지 여부
+                         , case when a.is_approved=1 and a.is_full = 1 then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_fully_profile -- 프로필 100% 작성 여부
+                         , case when a.is_approved=1 and b.category_ad_cnt>0 then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_category_ad -- 분야광고주 여부
+                         , case when a.is_approved=1 and b.location_ad_cnt>0 then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_location_ad -- 지역광고주 여부
+                         , case when a.is_approved=1 and b.plus_ad_cnt>0 then 1
+                                when a.is_approved=0 then null -- 비정상 데이터
+                                else 0
+                           end as is_plus_ad -- 플러스광고주 여부
+                         , coalesce(b.category_ad_cnt,0) as category_ad_cnt
+                         , coalesce(b.location_ad_cnt,0) as location_ad_cnt
+                         , coalesce(b.plus_ad_cnt,0) as plus_ad_cnt
+                         , a.address_location_id
+                         , a.address_location_name
+                         , a.counsel_phone_fee
+                         , a.counsel_video_fee
+                         , a.counsel_visiting_fee
+                         , a.birth
+                         , a.company
+                         , a.sex
+                         , a.exam
+                         , a.exam_round
+                         , a.exam_generation
+                         , a.exam_year
+                         , coalesce(c.acc_review_cnt,0) as acc_review_cnt
+                         , coalesce(d.acc_qna_cnt,0) as acc_qna_cnt
+                         , coalesce(e.acc_post_cnt,0) as acc_post_cnt
+                         , coalesce(f.acc_legaltip_cnt,0) as acc_legaltip_cnt
+                         , coalesce(g.acc_counsel_cnt,0) as acc_counsel_cnt
+                         , coalesce(h.acc_050call_cnt,0) as acc_050call_cnt
+                         , a.crt_dt
+                      from all_lawyer a
+                      left join ads_lawyer_info b
+                        on a.lawyer_id = b.lawyer_id
+                      left join acc_review_cnt c
+                        on a.lawyer_id = c.lawyer_id
+                      left join acc_qna_cnt d
+                        on a.lawyer_id = d.lawyer_id
+                      left join acc_post_cnt e
+                        on a.lawyer_id = e.lawyer_id
+                      left join acc_legaltip_cnt f
+                        on a.lawyer_id = f.lawyer_id
+                      left join acc_counsel_cnt g
+                        on a.lawyer_id = g.lawyer_id
+                      left join acc_050call_cnt h
+                        on a.lawyer_id = h.lawyer_id
+                  ) a
+                  full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
+                    on a.lawyer_id = b.lawyer_id
+                 group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
+                 -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생
+                 ;
+
+
+                 select *
+                   from `mart_tmp.lt_r_lawyer_ad_sales`
+                  where b_date = '2022-10-28'
+
+
+                  select *
+                   from `mart_tmp.lt_r_lawyer_ad_sales`
+                  where b_date = '2022-10-28'
+                  ;
+
+                 select counsel_status, count(distinct counsel_id)
+                 from `mart.lt_r_user_pay_counsel`
+                 where b_date between '2022-10-18' and '2022-10-29'
+                 and date(pay_crt_dt) between '2022-10-18' and '2022-10-29'
+                 group by counsel_status
+                 order by 1;
+
+                 select counsel_status, count(distinct counsel_id)
+                 from `mart_tmp.lt_r_user_pay_counsel`
+                 where b_date between '2022-10-18' and '2022-10-29'
+                 and date(pay_crt_dt) between '2022-10-18' and '2022-10-29'
+                 group by counsel_status
+                 order by 1;
+
+
+                 select b_date, cat_mapping_standard, sum(phone_cnt), sum(phone_price), sum(video_cnt), sum(video_price), sum(visiting_cnt), sum(visiting_price)
+                 from `mart.lt_w_lawyer_counsel`
+                 where b_date between '2022-10-25' and '2022-10-29'
+                 group by b_date, cat_mapping_standard
+                 order by 1,2;
+
+                 select b_date, cat_mapping_standard, sum(phone_cnt), sum(phone_price), sum(video_cnt), sum(video_price), sum(visiting_cnt), sum(visiting_price)
+                 from `mart_tmp.lt_w_lawyer_counsel`
+                 where b_date between '2022-10-25' and '2022-10-29'
+                 group by b_date, cat_mapping_standard
+                 order by 1,2;
+
+
+                 select *
+                 from `mart.lt_r_lawyer_ad_sales`
+                 where b_date = '2022-10-28'
+                 union all
+                 select *
+                 from `mart_tmp.lt_r_lawyer_ad_sales`
+                 where b_date = '2022-10-28'
+                 order by lawyer_id, order_id
+                 limit 100;
+
+                 select min(b_date)
+                 from `mart_tmp.lt_r_user_pay_counsel`
+
+                 select '1.1. 공개 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=1 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.1.1. 광고 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=1 and is_ad = 1 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.1.2. 비 광고 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=1 and is_ad = 0 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2. 비공개 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.1. 일시정지 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_paused = 1 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.1.1. 프로필 100% 작성 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_paused = 1 and is_fully_profile = 1 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.1.2. 프로필 100% 미만 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_paused = 1 and is_fully_profile = 0 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.1.3. 광고 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_paused = 1 and is_ad = 1 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.1.4. 비 광고 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_paused = 1 and is_ad = 0 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 union all
+                 select '1.2.2. 프로필 100% 미만 변호사' as cat, count(distinct (case when is_approved=1 and is_opened=0 and is_fully_profile = 0 then lawyer_id end)) val
+                 from `mart_tmp.lt_s_lawyer_info`
+                 where is_resting = 0
+                 and b_date = '2022-10-29'
+                 order by 1;
+
+
+    select 'adcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adcategories` union all
+    select 'adcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adcoupons` union all
+    select 'adkeywords' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adkeywords` union all
+    select 'adlocationcategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adlocationcategories` union all
+    select 'adlocationgroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adlocationgroups` union all
+    select 'adlocations' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adlocations` union all
+    select 'adorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adorders` union all
+    select 'adpayments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adpayments` union all
+    select 'adproductoptions' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adproductoptions` union all
+    select 'adproducts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adproducts` union all
+    select 'adsubscriptions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adsubscriptions` union all
+    select 'adtypes' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adtypes` union all
+    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advice` union all
+    select 'advicecancelcodes' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advicecancelcodes` union all
+    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advicecoupons` union all
+    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adviceschedules` union all
+    select 'advicetransaction' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advicetransaction` union all
+    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answerbodies` union all
+    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answercomments` union all
+    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answers` union all
+    select 'betaadorders' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.betaadorders` union all
+    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.callevents` union all
+    select 'categorygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.categorygroups` union all
+    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.clientevaluations` union all
+    select 'expertise' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.expertise` union all
+    select 'highlighttaglogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.highlighttaglogs` union all
+    select 'highlighttags' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.highlighttags` union all
+    select 'keywordcoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.keywordcoupons` union all
+    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.lawyerranks` union all
+    select 'lawyers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.lawyers` union all
+    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.logs` union all
+    select 'notifytalklogs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.notifytalklogs` union all
+    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.posts` union all
+    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.questions` union all
+    select 'surveycategories' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.surveycategories` union all
+    select 'surveygroups' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.surveygroups` union all
+    select 'surveyquestions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.surveyquestions` union all
+    select 'surveyresults' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.surveyresults` union all
+    select 'usercouponbooks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.usercouponbooks` union all
+    select 'users' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.users` union all
+    select 'videoactivities' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.videoactivities` union all
+    select 'videocategories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.videocategories` union all
+    select 'videos' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.videos` union all
+    select 'visiblecloudtypehistories' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.visiblecloudtypehistories`
     order by 1
     ;
 
@@ -482,7 +947,7 @@ select a.b_date
 
     select table_name
          , count(distinct column_name) as col_cnt
-    from `staging_test2.INFORMATION_SCHEMA.COLUMNS`
+    from `lt_src.INFORMATION_SCHEMA.COLUMNS`
     group by table_name
     order by 1
     limit 1000;
@@ -497,7 +962,7 @@ select a.b_date
     ;
 
     select table_name, column_name, ordinal_position
-    from `staging_test2.INFORMATION_SCHEMA.COLUMNS`
+    from `lt_src.INFORMATION_SCHEMA.COLUMNS`
     where table_name in
     (
     'adcoupons'
@@ -584,19 +1049,19 @@ select a.b_date
     where date(createdAt,'Asia/Seoul') >= '2022-01-01'
     ;
 
-    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.clientevaluations` union all
+    select 'clientevaluations' as table_name, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_crt, max(datetime(timestamp(current_date),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.clientevaluations` union all
 
-    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advice` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.advicecoupons` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.adviceschedules` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answerbodies` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answercomments` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.answers` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.callevents` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.lawyerranks` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'  union all
-    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.logs` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.posts` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
-    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `staging_test2.questions` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'
+    select 'advice' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advice` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'advicecoupons' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.advicecoupons` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'adviceschedules' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.adviceschedules` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answerbodies' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answerbodies` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answercomments' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answercomments` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'answers' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.answers` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'callevents' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.callevents` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'lawyerranks' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.lawyerranks` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'  union all
+    select 'logs' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.logs` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'posts' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.posts` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04' union all
+    select 'questions' as table_name, max(datetime(timestamp(createdAt),'Asia/Seoul')) as max_crt, max(datetime(timestamp(updatedAt),'Asia/Seoul')) as max_upd, count(*) as cnt from `lt_src.questions` where date(timestamp(createdAt),'Asia/Seoul') <= '2022-10-04'
     order by 1;
 
 
