@@ -1292,141 +1292,148 @@ with DAG(
             destination_dataset_table='lawtalk-bigquery.mart.lt_s_qna',
             write_disposition = 'WRITE_APPEND',
             sql='''
-            WITH t_question_cat AS (
-            SELECT
-                question_id
-                ,ARRAY_AGG(category_id) category_id
-                ,ARRAY_AGG(name) category_name
-            FROM (
-            SELECT
-                `raw.questions`._id question_id
-                -- -- ,REGEXP_EXTRACT_ALL(categories, r"ObjectId\('(.*?)'\)") category_id
-                ,category_id 
-                ,name
-            FROM `raw.questions`, UNNEST (REGEXP_EXTRACT_ALL(categories, r"ObjectId\('(.*?)'\)")) category_id
-                                LEFT JOIN `raw.adcategories` ON category_id = `raw.adcategories`._id
-            )
-            GROUP BY 1
-            )
-            , t_favorites_user AS (
-            SELECT
-                DISTINCT _id question_id
-                ,MAX(favorites_offset) OVER (PARTITION BY _id) + 1 favorites_user_cnt
-            FROM `raw.questions`, UNNEST(REGEXP_EXTRACT_ALL(favorites, r"ObjectId\('(.*?)'\)")) favorites WITH OFFSET favorites_offset
-            )
+                WITH t_question_cat AS (
+                SELECT
+                    question_id
+                    ,ARRAY_AGG(category_id) category_id
+                    ,ARRAY_AGG(name) category_name
+                FROM (
+                SELECT
+                    `lt_src.questions`._id question_id
+                    ,JSON_VALUE(category_id) category_id
+                    ,name
+                FROM `lt_src.questions`, UNNEST(JSON_QUERY_ARRAY(categories)) category_id
+                                        LEFT JOIN `raw.adcategories` ON JSON_VALUE(category_id) = `raw.adcategories`._id
+                )
+                WHERE category_id IS NOT NULL
+                GROUP BY 1
+                )
 
-            , t_users AS (
-            SELECT
-                user_id
-                ,user_nickname
-                ,user_status
-                ,user_email
-            FROM `lawtalk-bigquery.mart.lt_s_user_info` WHERE b_date = "{{next_ds}}"
-            )
+                , t_favorites_user AS (
+                SELECT
+                    DISTINCT _id question_id
+                    ,MAX(favorites_offset) OVER (PARTITION BY _id) + 1 favorites_user_cnt
+                FROM `lt_src.questions`, UNNEST(JSON_VALUE_ARRAY(favorites)) favorites WITH OFFSET favorites_offset
+                )
 
-            , t_question_users AS (
-            SELECT
-                date('{{next_ds}}') as b_date
-                ,_id question_id
-                ,number question_number
-                ,title question_title
-                ,DATETIME(`raw.questions`.createdAt,'Asia/Seoul') question_crt_dt
-                ,DATETIME(`raw.questions`.updatedAt,'Asia/Seoul') question_upd_dt
-                ,CAST(null AS int) is_kin_question
-                ,CASE exportable WHEN 'True' THEN 1 
-                                WHEN 'False' THEN 0
-                                ELSE null
-                END is_kin_question_exportable
-                ,viewCount acc_view_cnt
-                ,user user_id
-                ,user_nickname
-                ,user_status
-                ,user_email
-                -- ,role
-            FROM `raw.questions` LEFT JOIN t_users ON `raw.questions`.user = t_users.user_id
-            )
+                , t_users AS (
+                SELECT
+                    user_id
+                    ,user_nickname
+                    ,user_status
+                    ,user_email
+                FROM `lawtalk-bigquery.mart.lt_s_user_info` WHERE b_date = "{{next_ds}}"
+                )
 
-            , t_question_base AS (
-            SELECT
-                b_date
-                ,question_id
-                ,question_number
-                ,question_title
-                ,question_crt_dt
-                ,question_upd_dt
-                ,category_id
-                ,category_name
-                ,is_kin_question
-                ,is_kin_question_exportable
-                ,IFNULL(favorites_user_cnt,0) favorites_user_cnt
-                ,acc_view_cnt
-                -- ,role
-                ,user_id
-                ,user_nickname
-                ,user_status
-                ,user_email
-            FROM t_question_users LEFT JOIN t_question_cat USING (question_id)
-                                LEFT JOIN t_favorites_user USING (question_id)
-            )
+                , t_question_users AS (
+                SELECT
+                    DATE("{{next_ds}}") as b_date
+                    ,_id question_id
+                    ,number question_number
+                    ,title question_title
+                    ,DATETIME(TIMESTAMP(`lt_src.questions`.createdAt),'Asia/Seoul') question_crt_dt
+                    ,DATETIME(TIMESTAMP(`lt_src.questions`.updatedAt),'Asia/Seoul') question_upd_dt
+                    ,CAST(null AS int) is_kin_question
+                    ,CASE exportable WHEN 'True' THEN 1 
+                                    WHEN 'False' THEN 0
+                                    ELSE null
+                    END is_kin_question_exportable
+                    ,viewCount acc_view_cnt
+                    ,user user_id
+                    ,user_nickname
+                    ,user_status
+                    ,user_email
+                    ,isDirectPublished
+                    ,expectPublishedAt
+                FROM `lt_src.questions` LEFT JOIN t_users ON `lt_src.questions`.user = t_users.user_id
+                )
 
-            , t_answer_base AS (
-            SELECT
-                _id answer_id
-                ,question question_id
-                ,number answer_number
-                ,DATETIME(createdAt,'Asia/Seoul') answer_crt_dt
-                ,DATETIME(updatedAt,'Asia/Seoul') answer_upd_dt
-                ,CAST(null AS int) is_kin_answer
-                ,CASE exportable WHEN TRUE THEN 1 ELSE 0 END is_kin_answer_exportable
-                ,CASE isAdopted WHEN TRUE THEN 1 ELSE 0 END is_adopted
-                ,CASE REGEXP_EXTRACT(blindInfo, r"'blindStatus': (.*?),") WHEN 'True' THEN 1 WHEN 'False' THEN 0 ELSE 0 END is_blind_answer
-                ,lawyer lawyer_id
-                ,linfo.slug
-                ,lawyer_name
-                ,manager
-            FROM `raw.answers` LEFT JOIN (SELECT
-                                            lawyer_id
-                                            ,slug
-                                            ,lawyer_name
-                                            ,manager
-                                            FROM `mart.lt_s_lawyer_info` 
-                                            WHERE b_date = "{{next_ds}}") linfo
-                                    ON `raw.answers`.lawyer = linfo.lawyer_id
-            )
+                , t_question_base AS (
+                SELECT
+                    b_date
+                    ,question_id
+                    ,question_number
+                    ,question_title
+                    ,question_crt_dt
+                    ,question_upd_dt
+                    ,category_id
+                    ,category_name
+                    ,is_kin_question
+                    ,is_kin_question_exportable
+                    ,IFNULL(favorites_user_cnt,0) favorites_user_cnt
+                    ,acc_view_cnt
+                    ,user_id
+                    ,user_nickname
+                    ,user_status
+                    ,user_email
+                    ,isDirectPublished
+                    ,expectPublishedAt
+                FROM t_question_users LEFT JOIN t_question_cat USING (question_id)
+                                    LEFT JOIN t_favorites_user USING (question_id)
+                )
 
-            SELECT
-                b_date
-                ,question_id
-                ,CAST(question_number as numeric) question_number
-                ,question_title
-                ,question_crt_dt
-                ,question_upd_dt
-                ,category_id
-                ,category_name
-                ,is_kin_question
-                ,is_kin_question_exportable
-                ,CAST(favorites_user_cnt as numeric) favorites_user_cnt
-                ,CAST(acc_view_cnt as numeric) acc_view_cnt
-                ,user_id
-                ,user_nickname
-                ,user_status
-                ,user_email
-                ,CASE WHEN answer_id IS NULL THEN 0 ELSE 1 END is_answered
-                ,MIN(answer_crt_dt) OVER (PARTITION BY question_id) first_answer_crt_dt
-                ,MAX(answer_crt_dt) OVER (PARTITION BY question_id) recent_answer_crt_dt
-                ,answer_id
-                ,CAST(answer_number as numeric) answer_number
-                ,answer_crt_dt
-                ,answer_upd_dt
-                ,is_kin_answer
-                ,is_kin_answer_exportable
-                ,is_adopted
-                ,is_blind_answer
-                ,lawyer_id
-                ,slug lawyer_slug
-                ,lawyer_name
-                ,manager
-            FROM t_question_base LEFT JOIN t_answer_base USING (question_id)
+                , t_answer_base AS (
+                SELECT
+                    _id answer_id
+                    ,question question_id
+                    ,number answer_number
+                    ,DATETIME(createdAt,'Asia/Seoul') answer_crt_dt
+                    ,DATETIME(updatedAt,'Asia/Seoul') answer_upd_dt
+                    ,CAST(null AS int) is_kin_answer
+                    ,CASE exportable WHEN TRUE THEN 1 ELSE 0 END is_kin_answer_exportable
+                    ,CASE isAdopted WHEN TRUE THEN 1 ELSE 0 END is_adopted
+                    ,CASE REGEXP_EXTRACT(blindInfo, r"'blindStatus': (.*?),") WHEN 'True' THEN 1 WHEN 'False' THEN 0 ELSE 0 END is_blind_answer
+                    ,lawyer lawyer_id
+                    ,linfo.slug
+                    ,lawyer_name
+                    ,manager
+                FROM `raw.answers` LEFT JOIN (SELECT
+                                                lawyer_id
+                                                ,slug
+                                                ,lawyer_name
+                                                ,manager
+                                                FROM `mart.lt_s_lawyer_info` 
+                                                WHERE b_date = "{{next_ds}}") linfo
+                                        ON `raw.answers`.lawyer = linfo.lawyer_id
+                )
+
+                SELECT
+                    b_date
+                    ,question_id
+                    ,CAST(question_number as numeric) question_number
+                    ,question_title
+                    ,question_crt_dt
+                    ,question_upd_dt
+                    ,category_id
+                    ,category_name
+                    ,is_kin_question
+                    ,is_kin_question_exportable
+                    ,CAST(favorites_user_cnt as numeric) favorites_user_cnt
+                    ,CAST(acc_view_cnt as numeric) acc_view_cnt
+                    ,user_id
+                    ,user_nickname
+                    ,user_status
+                    ,user_email
+                    ,CASE WHEN answer_id IS NULL THEN 0 ELSE 1 END is_answered
+                    ,MIN(answer_crt_dt) OVER (PARTITION BY question_id) first_answer_crt_dt
+                    ,MAX(answer_crt_dt) OVER (PARTITION BY question_id) recent_answer_crt_dt
+                    ,answer_id
+                    ,CAST(answer_number as numeric) answer_number
+                    ,answer_crt_dt
+                    ,answer_upd_dt
+                    ,is_kin_answer
+                    ,is_kin_answer_exportable
+                    ,is_adopted
+                    ,is_blind_answer
+                    ,lawyer_id
+                    ,slug lawyer_slug
+                    ,lawyer_name
+                    ,manager
+                    ,CASE isDirectPublished WHEN TRUE THEN 1 
+                                            WHEN FALSE THEN 0 
+                    END is_direct_published
+                    ,DATETIME(TIMESTAMP(expectPublishedAt),'Asia/Seoul') expect_published_dt
+                FROM t_question_base LEFT JOIN t_answer_base USING (question_id)
                 '''
         )
 
