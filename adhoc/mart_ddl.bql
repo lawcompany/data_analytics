@@ -303,7 +303,6 @@ CREATE TABLE `mart.lt_s_qna`
 , category_id array<string> options(description="온라인 상담 질문의 카테고리 ID")
 , category_name array<string> options(description="온라인 상담 질문의 카테고리명")
 , is_kin_question int options(description="온라인 상담 질문의 지식인 노출 여부 [노출: 1, 미노출: 0]")
-, is_kin_question_exportable int options(description="온라인 상담 질문의 지식인 노출 가능 여부 [가능: 1, 불가능: 0]")
 , favorites_user_cnt numeric options(description="질문을 즐겨찾기한 유저 수")
 , acc_view_cnt numeric options(description="누적 조회수")
 , user_id string options(description="온라인 상담 질문 의뢰인 ID")
