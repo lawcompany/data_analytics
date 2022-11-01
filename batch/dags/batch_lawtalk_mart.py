@@ -1334,10 +1334,6 @@ with DAG(
                     ,DATETIME(TIMESTAMP(`lt_src.questions`.createdAt),'Asia/Seoul') question_crt_dt
                     ,DATETIME(TIMESTAMP(`lt_src.questions`.updatedAt),'Asia/Seoul') question_upd_dt
                     ,CAST(null AS int) is_kin_question
-                    ,CASE exportable WHEN 'True' THEN 1 
-                                    WHEN 'False' THEN 0
-                                    ELSE null
-                    END is_kin_question_exportable
                     ,viewCount acc_view_cnt
                     ,user user_id
                     ,user_nickname
@@ -1359,7 +1355,7 @@ with DAG(
                     ,category_id
                     ,category_name
                     ,is_kin_question
-                    ,is_kin_question_exportable
+
                     ,IFNULL(favorites_user_cnt,0) favorites_user_cnt
                     ,acc_view_cnt
                     ,user_id
@@ -1407,7 +1403,6 @@ with DAG(
                     ,category_id
                     ,category_name
                     ,is_kin_question
-                    ,is_kin_question_exportable
                     ,CAST(favorites_user_cnt as numeric) favorites_user_cnt
                     ,CAST(acc_view_cnt as numeric) acc_view_cnt
                     ,user_id
