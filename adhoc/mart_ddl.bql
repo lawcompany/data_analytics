@@ -325,6 +325,8 @@ CREATE TABLE `mart.lt_s_qna`
 , lawyer_slug string options(description="온라인 상담 답변 slug")
 , lawyer_name string options(description="온라인 상담 답변 변호사 성명")
 , manager string options(description="온라인 상담 답변 담당 BM 성명")
+, is_direct_published int options(description="직접 발행 여부 [직접 발행: 1, 그렇지 않으면: 0]")
+, expect_published_dt datetime options(description="자동 발행 예상 일시")
 )
 partition by b_date
 cluster by question_crt_dt, answer_crt_dt, lawyer_id
