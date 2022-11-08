@@ -1437,5 +1437,5 @@ with DAG(
 
 start >> lt_r_lawyer_ad_sales >> lt_s_lawyer_ads >> lt_s_lawyer_info >> lt_s_qna
 start >> lt_r_user_pay_counsel >> lt_w_lawyer_counsel >> lt_s_lawyer_info
-lt_r_user_pay_counsel >> lt_r_lawyer_slot >> lt_w_lawyer_slot
+lt_s_lawyer_info >> lt_r_lawyer_slot >> lt_w_lawyer_slot
 start >> lt_s_user_info >> lt_s_qna
