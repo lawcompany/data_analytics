@@ -947,12 +947,13 @@ with DAG(
             sql='''
             WITH t_lawyer AS (
             SELECT
-                lawyer_id
+                b_date
+                ,lawyer_id
                 ,slug
                 ,lawyer_name
                 ,manager
             FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
-            WHERE b_date = date('{{next_ds}}')
+            WHERE b_date BETWEEN date('{{next_ds}}') - 11 AND date('{{next_ds}}')
             )
             , BASE AS (
             SELECT
@@ -1031,6 +1032,7 @@ with DAG(
                             AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
                             AND t_slot.kind = t_advice.kind
                     LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
+                                        AND AND DATE(t_slot.slot_crt_dt) = t_lawyer.b_date
                     '''
         )
 
