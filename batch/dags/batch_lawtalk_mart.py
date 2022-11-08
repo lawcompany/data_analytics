@@ -972,7 +972,7 @@ with DAG(
             SELECT 
                 DATE(slot_opened_dt) as b_date
                 ,t_slot.lawyer lawyer_id
-                ,IFNULL(slug,'탈퇴/휴면 변호사') slug
+                ,slug
                 ,lawyer_name name
                 ,manager
                 ,slot_crt_dt
