@@ -920,6 +920,129 @@ with DAG(
 
         delete_lt_w_lawyer_counsel >> insert_lt_w_lawyer_counsel
 
+    ########################################################
+    #dataset: mart
+    #table_name: lt_w_user_counsel
+    #description: [로톡] 일자별 유저별 카테고리별 유료상담 현황
+    #table_type: w단 일자별 집계
+    #reprocessing date range: b_date기준 5일치 재처리(D-6 ~ D-1) : lt_r_user_pay_counsel.counsel_exc_dt기준으로 D+5까지 counsel_status가 업데이트 될 수 있으므로 5일치 재처리
+    #modified history :
+    ########################################################
+
+    with TaskGroup(
+        group_id="lt_w_user_counsel"
+        ) as lt_w_user_counsel:
+
+        delete_lt_w_user_counsel = BigQueryOperator(
+            task_id = 'delete_lt_w_user_counsel',
+            use_legacy_sql = False,
+            sql = "delete from `lawtalk-bigquery.mart.lt_w_user_counsel` where b_date between date('{{next_ds}}')-5 and date('{{next_ds}}')"
+        )
+
+        insert_lt_w_user_counsel = BigQueryExecuteQueryOperator(
+            task_id='insert_lt_w_user_counsel',
+            use_legacy_sql = False,
+            destination_dataset_table='lawtalk-bigquery.mart.lt_w_user_counsel',
+            write_disposition = 'WRITE_APPEND',
+            sql='''
+                -- 유저가 입력한 키워드 기준의 분야 (키워드에 다중 카테고리가 매칭될 수 있음 그럴 경우 1/n 분배)
+                select a.b_date
+                     , a.user_id
+                     , a.user_email
+                     , a.user_name
+                     , a.user_nickname
+                     , 'keyword' as cat_mapping_standard
+                     , coalesce(b._id, c._id, 'N/A') as category_id
+                     , a.cat as category_name
+                     , a.lawyer_id
+                     , a.slug
+                     , a.lawyer_name
+                     , a.manager
+                     , sum(case when a.kind='phone' then a.counsel_cnt end) as phone_cnt
+                     , sum(case when a.kind='phone' then a.counsel_price end) as phone_price
+                     , sum(case when a.kind='video' then a.counsel_cnt end) as video_cnt
+                     , sum(case when a.kind='video' then a.counsel_price end) as video_price
+                     , sum(case when a.kind='visiting' then a.counsel_cnt end) as visiting_cnt
+                     , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
+                  from
+                      (
+                        select date(a.counsel_exc_dt) as b_date
+                             , a.user_id
+                             , a.user_email
+                             , a.user_name
+                             , a.user_nickname
+                             , a.lawyer_id
+                             , a.slug
+                             , a.lawyer_name
+                             , a.manager
+                             , cat
+                             , a.counsel_id
+                             , a.kind
+                             , safe_cast(1/array_length(split(a.context_additional, ',')) as numeric) as counsel_cnt
+                             , safe_cast(a.origin_fee * (1/array_length(split(a.context_additional, ','))) as numeric) as counsel_price
+                          from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+                             , unnest(split(a.context_additional, ',')) as cat
+                         where a.b_date >='2022-06-16'
+                           and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                           and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
+                           and a.counsel_status = 'complete'
+                      ) a
+                  left join `lawtalk-bigquery.raw.adcategories` b
+                    on a.cat = b.name
+                  left join `lawtalk-bigquery.raw.adlocationgroups` c
+                    on a.cat = c.name
+                 group by a.b_date
+                        , a.user_id
+                        , a.user_email
+                        , a.user_name
+                        , a.user_nickname
+                        , a.lawyer_id
+                        , a.slug
+                        , a.lawyer_name
+                        , a.manager
+                        , coalesce(b._id, c._id, 'N/A')
+                        , a.cat
+                union all
+                -- 변호사가 입력한 분야
+                select date(a.counsel_exc_dt) as b_date
+                     , a.user_id
+                     , a.user_email
+                     , a.user_name
+                     , a.user_nickname
+                     , 'category' as cat_mapping_standard
+                     , a.category_id
+                     , a.category_name
+                     , a.lawyer_id
+                     , a.slug
+                     , a.lawyer_name
+                     , a.manager
+                     , sum(case when a.kind='phone' then 1 end) as phone_cnt
+                     , sum(case when a.kind='phone' then a.origin_fee end) as phone_price
+                     , sum(case when a.kind='video' then 1 end) as video_cnt
+                     , sum(case when a.kind='video' then a.origin_fee end) as video_price
+                     , sum(case when a.kind='visiting' then 1 end) as visiting_cnt
+                     , sum(case when a.kind='visiting' then a.origin_fee end) as visiting_price
+                  from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+                 where a.b_date >='2022-06-16'
+                   and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                   and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
+                   and a.counsel_status = 'complete'
+                 group by date(a.counsel_exc_dt)
+                        , a.user_id
+                        , a.user_email
+                        , a.user_name
+                        , a.user_nickname
+                        , a.lawyer_id
+                        , a.slug
+                        , a.lawyer_name
+                        , a.manager
+                        , a.category_id
+                        , a.category_name
+                '''
+        )
+
+        delete_lt_w_user_counsel >> insert_lt_w_user_counsel
+
 
     ########################################################
     #dataset: mart
@@ -1440,4 +1563,5 @@ with DAG(
 start >> lt_r_lawyer_ad_sales >> lt_s_lawyer_ads >> lt_s_lawyer_info >> lt_s_qna
 start >> lt_r_user_pay_counsel >> lt_w_lawyer_counsel >> lt_s_lawyer_info
 lt_s_lawyer_info >> lt_r_lawyer_slot >> lt_w_lawyer_slot
+lt_r_user_pay_counsel >> lt_w_user_counsel
 start >> lt_s_user_info >> lt_s_qna
