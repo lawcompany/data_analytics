@@ -292,7 +292,7 @@ options
 )
 ;
 
-CREATE TABLE `mart.lt_s_qna` 
+CREATE TABLE `mart.lt_s_qna`
 (
  b_date date options(description="기준일자")
 , question_id string options(description="question ID")
@@ -332,6 +332,36 @@ cluster by question_crt_dt, answer_crt_dt, lawyer_id
 options
 (
     description="[로톡] 상담 사례 질문과 답변",
+    labels=[("service","lawtalk")]
+)
+;
+
+create table `mart.lt_w_user_counsel`
+(
+b_date date options(description="기준일자")
+, user_id string options(description="의뢰인ID(objectID)")
+, user_email string options(description="의뢰인 이메일")
+, user_name string options(description="의뢰인 이름")
+, user_nickname string options(description="의뢰인ID")
+, cat_mapping_standard string options(description="분야 매핑 기준[keyword : 의뢰인이 입력학 키워드 기반, category : 변호사가 리뷰지에 작성한 분야 기반]")
+, category_id string options(description="분야 ID")
+, category_name string options(description="분야 이름")
+, lawyer_id string options(description="상담받은 변호사ID")
+, slug string options(description="상담받은 변호사슬러그")
+, lawyer_name string options(description="상담받은 변호사 이름")
+, manager string options(description="상담받은 변호사담당BM")
+, phone_cnt numeric options(description="15분 전화상담 완료 건수")
+, phone_price numeric options(description="15분 전화상담 완료 금액")
+, video_cnt numeric options(description="20분 영상상담 완료 건수")
+, video_price numeric options(description="20분 영상상담 완료 금액")
+, visiting_cnt numeric options(description="30분 방문상담 완료 건수")
+, visiting_price numeric options(description="30분 방문 상담 완료 금액")
+)
+partition by b_date
+cluster by user_id
+options
+(
+    description="[로톡] 일자별 유저별 카테고리별 유료상담 현황",
     labels=[("service","lawtalk")]
 )
 ;
