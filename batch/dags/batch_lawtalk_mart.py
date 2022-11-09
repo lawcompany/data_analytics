@@ -1032,7 +1032,7 @@ with DAG(
                             AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
                             AND t_slot.kind = t_advice.kind
                     LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
-                                        AND AND DATE(t_slot.slot_crt_dt) = t_lawyer.b_date
+                                        AND DATE(t_slot.slot_crt_dt) = t_lawyer.b_date
                     '''
         )
 
