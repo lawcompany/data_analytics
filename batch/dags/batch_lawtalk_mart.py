@@ -176,42 +176,42 @@ with DAG(
                     group by lawyer
                 )
                 select date('{{next_ds}}') as b_date
-                    , coalesce(a.lawyer_id, b.lawyer_id) as lawyer_id
-                    , coalesce(a.slug, b.slug) as slug
-                    , coalesce(a.lawyer_name, b.lawyer_name) as lawyer_name
-                    , coalesce(a.manager, b.manager) as manager
-                    , coalesce(a.is_approved, b.is_approved) as is_approved
-                    , coalesce(a.is_opened, b.is_opened) as is_opened
-                    , coalesce(a.is_ad, b.is_ad) as is_ad
-                    , coalesce(a.paid_kind, b.paid_kind) as paid_kind
-                    , coalesce(a.is_paused, b.is_paused) as is_paused
-                    , coalesce(a.is_fully_profile, b.is_fully_profile) as is_fully_profile
+                    , case when a.lawyer_id is not null then a.lawyer_id else b.lawyer_id end as lawyer_id
+                    , case when a.lawyer_id is not null then a.slug else b.slug end as slug
+                    , case when a.lawyer_id is not null then a.lawyer_name else b.lawyer_name end as lawyer_name
+                    , case when a.lawyer_id is not null then a.manager else b.manager end as manager
+                    , case when a.lawyer_id is not null then a.is_approved else b.is_approved end as is_approved
+                    , case when a.lawyer_id is not null then a.is_opened else b.is_opened end as is_opened
+                    , case when a.lawyer_id is not null then a.is_ad else b.is_ad end as is_ad
+                    , case when a.lawyer_id is not null then a.paid_kind else b.paid_kind end as paid_kind
+                    , case when a.lawyer_id is not null then a.is_paused else b.is_paused end as is_paused
+                    , case when a.lawyer_id is not null then a.is_fully_profile else b.is_fully_profile end as is_fully_profile
                     , case when b.lawyer_id is not null and a.lawyer_id is null then 1 else 0 end as is_resting -- 전일자엔 변호사 정보가 있는데 당일자엔 없다면 휴면처리가 되어 센티널로 넘어갔다고 볼 수 있음
-                    , coalesce(a.is_category_ad, b.is_category_ad) as is_category_ad
-                    , coalesce(a.is_location_ad, b.is_location_ad) as is_location_ad
-                    , coalesce(a.is_plus_ad, b.is_plus_ad) as is_plus_ad
-                    , coalesce(a.category_ad_cnt, b.category_ad_cnt) as category_ad_cnt
-                    , coalesce(a.location_ad_cnt, b.location_ad_cnt) as location_ad_cnt
-                    , coalesce(a.plus_ad_cnt, b.plus_ad_cnt) as plus_ad_cnt
-                    , coalesce(a.address_location_id, b.address_location_id) as address_location_id
-                    , coalesce(a.address_location_name, b.address_location_name) as address_location_name
-                    , coalesce(a.counsel_phone_fee, b.counsel_phone_fee) as counsel_phone_fee
-                    , coalesce(a.counsel_video_fee, b.counsel_video_fee) as counsel_video_fee
-                    , coalesce(a.counsel_visiting_fee, b.counsel_visiting_fee) as counsel_visiting_fee
-                    , coalesce(a.birth, b.birth) as birth
-                    , coalesce(a.company, b.company) as company
-                    , coalesce(a.sex, b.sex) as sex
-                    , coalesce(a.exam, b.exam) as exam
-                    , coalesce(a.exam_round, b.exam_round) as exam_round
-                    , coalesce(a.exam_generation, b.exam_generation) as exam_generation
-                    , coalesce(a.exam_year, b.exam_year) as exam_year
-                    , coalesce(a.acc_review_cnt, b.acc_review_cnt) as acc_review_cnt
-                    , coalesce(a.acc_qna_cnt, b.acc_qna_cnt) as acc_qna_cnt
-                    , coalesce(a.acc_post_cnt, b.acc_post_cnt) as acc_post_cnt
-                    , coalesce(a.acc_legaltip_cnt, b.acc_legaltip_cnt) as acc_legaltip_cnt
-                    , coalesce(a.acc_counsel_cnt, b.acc_counsel_cnt) as acc_counsel_cnt
-                    , coalesce(a.acc_050call_cnt, b.acc_050call_cnt) as acc_050call_cnt
-                    , coalesce(a.crt_dt, b.crt_dt) as crt_dt
+                    , case when a.lawyer_id is not null then a.is_category_ad else b.is_category_ad end as is_category_ad
+                    , case when a.lawyer_id is not null then a.is_location_ad else b.is_location_ad end as is_location_ad
+                    , case when a.lawyer_id is not null then a.is_plus_ad else b.is_plus_ad end as is_plus_ad
+                    , case when a.lawyer_id is not null then a.category_ad_cnt else b.category_ad_cnt end as category_ad_cnt
+                    , case when a.lawyer_id is not null then a.location_ad_cnt else b.location_ad_cnt end as location_ad_cnt
+                    , case when a.lawyer_id is not null then a.plus_ad_cnt else b.plus_ad_cnt end as plus_ad_cnt
+                    , case when a.lawyer_id is not null then a.address_location_id else b.address_location_id end as address_location_id
+                    , case when a.lawyer_id is not null then a.address_location_name else b.address_location_name end as address_location_name
+                    , case when a.lawyer_id is not null then a.counsel_phone_fee else b.counsel_phone_fee end as counsel_phone_fee
+                    , case when a.lawyer_id is not null then a.counsel_video_fee else b.counsel_video_fee end as counsel_video_fee
+                    , case when a.lawyer_id is not null then a.counsel_visiting_fee else b.counsel_visiting_fee end as counsel_visiting_fee
+                    , case when a.lawyer_id is not null then a.birth else b.birth end as birth
+                    , case when a.lawyer_id is not null then a.company else b.company end as company
+                    , case when a.lawyer_id is not null then a.sex else b.sex end as sex
+                    , case when a.lawyer_id is not null then a.exam else b.exam end as exam
+                    , case when a.lawyer_id is not null then a.exam_round else b.exam_round end as exam_round
+                    , case when a.lawyer_id is not null then a.exam_generation else b.exam_generation end as exam_generation
+                    , case when a.lawyer_id is not null then a.exam_year else b.exam_year end as exam_year
+                    , case when a.lawyer_id is not null then a.acc_review_cnt else b.acc_review_cnt end as acc_review_cnt
+                    , case when a.lawyer_id is not null then a.acc_qna_cnt else b.acc_qna_cnt end as acc_qna_cnt
+                    , case when a.lawyer_id is not null then a.acc_post_cnt else b.acc_post_cnt end as acc_post_cnt
+                    , case when a.lawyer_id is not null then a.acc_legaltip_cnt else b.acc_legaltip_cnt end as acc_legaltip_cnt
+                    , case when a.lawyer_id is not null then a.acc_counsel_cnt else b.acc_counsel_cnt end as acc_counsel_cnt
+                    , case when a.lawyer_id is not null then a.acc_050call_cnt else b.acc_050call_cnt end as acc_050call_cnt
+                    , case when a.lawyer_id is not null then a.crt_dt else b.crt_dt end as crt_dt
                 from
                 (
                     select a.lawyer_id
@@ -631,7 +631,7 @@ with DAG(
 
         delete_lt_s_lawyer_ads >> insert_lt_s_lawyer_ads
 
-    
+
     ########################################################
     #dataset: mart
     #table_name: lt_r_user_pay_counsel
@@ -932,7 +932,7 @@ with DAG(
     with TaskGroup(
     group_id="lt_r_lawyer_slot"
     ) as lt_r_lawyer_slot:
-        
+
         delete_lt_r_lawyer_slot = BigQueryOperator(
             task_id = 'delete_lt_r_lawyer_slot',
             use_legacy_sql = False,
@@ -967,9 +967,9 @@ with DAG(
             FROM `lawtalk-bigquery.raw.adviceschedules`, UNNEST(REGEXP_EXTRACT_ALL(times,r"'phone': \[(.*?)\]")) phone_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'video': \[(.*?)\]")) video_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'visiting': \[(.*?)\]")) visiting_times
             WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
             QUALIFY rn = 1
-            ) 
+            )
 
-            SELECT 
+            SELECT
                 DATE(slot_opened_dt) as b_date
                 ,t_slot.lawyer lawyer_id
                 ,slug
@@ -979,13 +979,13 @@ with DAG(
                 ,slot_opened_dt
                 ,EXTRACT(DATE FROM slot_opened_dt) slot_opened_date
                 ,FORMAT_DATETIME('%R', slot_opened_dt) slot_opened_time
-                ,CASE EXTRACT(DAYOFWEEK FROM slot_opened_dt) WHEN 1 THEN '일' 
+                ,CASE EXTRACT(DAYOFWEEK FROM slot_opened_dt) WHEN 1 THEN '일'
                                                             WHEN 2 THEN '월'
                                                             WHEN 3 THEN '화'
                                                             WHEN 4 THEN '수'
                                                             WHEN 5 THEN '목'
                                                             WHEN 6 THEN '금'
-                                                            WHEN 7 THEN '토' 
+                                                            WHEN 7 THEN '토'
                 END slot_day_of_week
                 ,t_slot.kind
                 ,CASE WHEN counsel_exc_dt = slot_opened_dt THEN 1 ELSE 0 END is_reserved
@@ -1000,7 +1000,7 @@ with DAG(
                 ,slot_crt_dt
             FROM BASE, UNNEST(SPLIT(phone_times,', ')) phone_time_slot
 
-            UNION ALL 
+            UNION ALL
 
             SELECT
                 lawyer
@@ -1009,7 +1009,7 @@ with DAG(
                 ,slot_crt_dt
             FROM BASE, UNNEST(SPLIT(video_times,', ')) video_time_slot
 
-            UNION ALL 
+            UNION ALL
 
             SELECT
                 lawyer
@@ -1018,14 +1018,14 @@ with DAG(
                 ,slot_crt_dt
             FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
 
-            ) t_slot LEFT JOIN (SELECT 
+            ) t_slot LEFT JOIN (SELECT
                                     counsel_exc_dt
                                     ,counsel_crt_dt
                                     ,kind
                                     ,lawyer_id
                                     ,counsel_status
                                     ,counsel_id
-                                FROM `lawtalk-bigquery.mart.lt_r_user_pay_counsel` 
+                                FROM `lawtalk-bigquery.mart.lt_r_user_pay_counsel`
                                 WHERE DATE(counsel_exc_dt) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
                                 AND counsel_status != 'reserved') t_advice
                             ON t_slot.lawyer = t_advice.lawyer_id
@@ -1063,7 +1063,7 @@ with DAG(
             destination_dataset_table='lawtalk-bigquery.mart.lt_w_lawyer_slot',
             write_disposition = 'WRITE_APPEND',
             sql='''
-            SELECT 
+            SELECT
                 b_date
                 ,slot_day_of_week
                 ,lawyer_id
@@ -1081,7 +1081,7 @@ with DAG(
                 ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' THEN slot_opened_dt END) AS numeric) visiting_slot_opened_cnt
                 ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 THEN slot_opened_dt END) AS numeric) visiting_reserve_cnt
                 ,CAST(COUNT(DISTINCT CASE WHEN kind = 'visiting' AND is_reserved = 1 AND counsel_status = 'complete' THEN slot_opened_dt END) AS numeric) visiting_complete_cnt
-            FROM `lawtalk-bigquery.mart.lt_r_lawyer_slot` 
+            FROM `lawtalk-bigquery.mart.lt_r_lawyer_slot`
             WHERE b_date BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
             GROUP BY 1,2,3,4,5,6
                 '''
@@ -1124,7 +1124,7 @@ with DAG(
                 WHERE b_date = date('{{next_ds}}')
             )
             , BASE AS (
-            SELECT 
+            SELECT
                 date('{{next_ds}}') as b_date
                 ,role
                 ,_id user_id
@@ -1156,8 +1156,8 @@ with DAG(
                 ,referrerOther referrer_other
                 ,recommender recommender_id
                 ,CAST(null AS string) recommender_name
-                ,CASE reviewCouponCheck WHEN 'True' THEN 1 
-                                        WHEN 'False' THEN 0 
+                ,CASE reviewCouponCheck WHEN 'True' THEN 1
+                                        WHEN 'False' THEN 0
                                         ELSE null
                 END is_review_coupon
                 ,REGEXP_EXTRACT(utm, r"'utm_source': '(.*?)'") utm_source
@@ -1186,16 +1186,16 @@ with DAG(
             WHERE sms_marketing_status_unnested_offset = sms_marketing_start_date_unnested_offset
             AND sms_marketing_start_date_unnested_offset = sms_marketing_end_date_unnested_offset
             AND sms_marketing_status_unnested_offset = sms_marketing_end_date_unnested_offset
-            ) 
+            )
 
             , t_sms_marketing2 AS (
             SELECT
-                t_sms_marketing.user_id 
+                t_sms_marketing.user_id
                 ,sms_marketing_status
                 ,sms_marketing_start_date
                 ,sms_marketing_end_date
-            FROM t_sms_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_sms_marketing GROUP BY 1) sub 
-                                            ON t_sms_marketing.user_id = sub.user_id 
+            FROM t_sms_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_sms_marketing GROUP BY 1) sub
+                                            ON t_sms_marketing.user_id = sub.user_id
                                             AND t_sms_marketing.history_number = sub.history_number
             )
 
@@ -1218,16 +1218,16 @@ with DAG(
             WHERE email_marketing_status_unnested_offset = email_marketing_start_date_unnested_offset
             AND email_marketing_start_date_unnested_offset = email_marketing_end_date_unnested_offset
             AND email_marketing_status_unnested_offset = email_marketing_end_date_unnested_offset
-            ) 
+            )
 
             , t_email_marketing2 AS (
             SELECT
-                t_email_marketing.user_id 
+                t_email_marketing.user_id
                 ,email_marketing_status
                 ,email_marketing_start_date
                 ,email_marketing_end_date
-            FROM t_email_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_email_marketing GROUP BY 1) sub 
-                                            ON t_email_marketing.user_id = sub.user_id 
+            FROM t_email_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_email_marketing GROUP BY 1) sub
+                                            ON t_email_marketing.user_id = sub.user_id
                                             AND t_email_marketing.history_number = sub.history_number
             )
 
@@ -1248,7 +1248,7 @@ with DAG(
                 ,is_email_accept
                 ,email_marketing_status is_email_marketing_accept
                 -- ,email_marketing_start_date email_marketing_accept_start_date
-                ,sms_marketing_end_date email_marketing_accept_end_date 
+                ,sms_marketing_end_date email_marketing_accept_end_date
                 ,is_sms_accept
                 ,sms_marketing_status is_sms_marketing_accept
                 -- ,sms_marketing_start_date sms_marketing_accept_start_date
@@ -1287,7 +1287,7 @@ with DAG(
             use_legacy_sql = False,
             sql = "delete from `lawtalk-bigquery.mart.lt_s_qna` where b_date = date('{{next_ds}}')"
         )
-        
+
         insert_lt_s_qna = BigQueryExecuteQueryOperator(
             task_id='insert_lt_s_qna',
             use_legacy_sql = False,
@@ -1390,7 +1390,7 @@ with DAG(
                                                 ,slug
                                                 ,lawyer_name
                                                 ,manager
-                                                FROM `mart.lt_s_lawyer_info` 
+                                                FROM `mart.lt_s_lawyer_info`
                                                 WHERE b_date = "{{next_ds}}") linfo
                                         ON `raw.answers`.lawyer = linfo.lawyer_id
                 )
@@ -1426,8 +1426,8 @@ with DAG(
                     ,slug lawyer_slug
                     ,lawyer_name
                     ,manager
-                    ,CASE isDirectPublished WHEN TRUE THEN 1 
-                                            WHEN FALSE THEN 0 
+                    ,CASE isDirectPublished WHEN TRUE THEN 1
+                                            WHEN FALSE THEN 0
                     END is_direct_published
                     ,DATETIME(TIMESTAMP(expectPublishedAt),'Asia/Seoul') expect_published_dt
                 FROM t_question_base LEFT JOIN t_answer_base USING (question_id)
