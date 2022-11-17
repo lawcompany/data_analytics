@@ -1461,7 +1461,7 @@ with DAG(
                     ,JSON_VALUE(category_id) category_id
                     ,name
                 FROM `lt_src.questions`, UNNEST(JSON_QUERY_ARRAY(categories)) category_id
-                                        LEFT JOIN `raw.adcategories` ON JSON_VALUE(category_id) = `raw.adcategories`._id
+                                        LEFT JOIN `lt_src.adcategories` ON JSON_VALUE(category_id) = `lt_src.adcategories`._id
                 )
                 WHERE category_id IS NOT NULL
                 GROUP BY 1
@@ -1513,7 +1513,6 @@ with DAG(
                     ,category_id
                     ,category_name
                     ,is_kin_question
-
                     ,IFNULL(favorites_user_cnt,0) favorites_user_cnt
                     ,acc_view_cnt
                     ,user_id
@@ -1531,24 +1530,24 @@ with DAG(
                     _id answer_id
                     ,question question_id
                     ,number answer_number
-                    ,DATETIME(createdAt,'Asia/Seoul') answer_crt_dt
-                    ,DATETIME(updatedAt,'Asia/Seoul') answer_upd_dt
+                    ,DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') answer_crt_dt
+                    ,DATETIME(TIMESTAMP(updatedAt),'Asia/Seoul') answer_upd_dt
                     ,CAST(null AS int) is_kin_answer
                     ,CASE exportable WHEN TRUE THEN 1 ELSE 0 END is_kin_answer_exportable
                     ,CASE isAdopted WHEN TRUE THEN 1 ELSE 0 END is_adopted
-                    ,CASE REGEXP_EXTRACT(blindInfo, r"'blindStatus': (.*?),") WHEN 'True' THEN 1 WHEN 'False' THEN 0 ELSE 0 END is_blind_answer
+                    ,CASE JSON_VALUE(blindInfo, '$.blindStatus') WHEN 'true' THEN 1 WHEN 'false' THEN 0 ELSE 0 END is_blind_answer
                     ,lawyer lawyer_id
                     ,linfo.slug
                     ,lawyer_name
                     ,manager
-                FROM `raw.answers` LEFT JOIN (SELECT
+                FROM `lt_src.answers` LEFT JOIN (SELECT
                                                 lawyer_id
                                                 ,slug
                                                 ,lawyer_name
                                                 ,manager
                                                 FROM `mart.lt_s_lawyer_info`
                                                 WHERE b_date = "{{next_ds}}") linfo
-                                        ON `raw.answers`.lawyer = linfo.lawyer_id
+                                        ON `lt_src.answers`.lawyer = linfo.lawyer_id
                 )
 
                 SELECT
