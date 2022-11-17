@@ -1399,11 +1399,11 @@ with DAG(
                     ,CASE isEmailAccept WHEN True THEN 1 ELSE 0 END is_email_accept
                     ,CASE JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.status') WHEN 'true' THEN 1 ELSE 0 END is_email_marketing_accept
                     -- ,JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.startDate') email_marketing_accept_start_date
-                    ,JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.endDate') email_marketing_accept_end_date
+                    ,DATETIME(TIMESTAMP(JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.endDate')),'Asia/Seoul') email_marketing_accept_end_date
                     ,CASE isSMSAccept WHEN True THEN 1 ELSE 0 END is_sms_accept
                     ,CASE JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.status') WHEN 'true' THEN 1 ELSE 0 END is_sms_marketing_accept
                     -- ,JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.startDate') sms_marketing_accept_start_date
-                    ,JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.endDate') sms_marketing_accept_end_date
+                    ,DATETIME(TIMESTAMP(JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.endDate')),'Asia/Seoul') sms_marketing_accept_end_date
                     ,provider
                     ,referrer
                     ,referrerOther referrer_other
