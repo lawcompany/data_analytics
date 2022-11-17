@@ -282,6 +282,8 @@ create table `mart.lt_s_user_info`
   , utm_medium string options(description="")
   , utm_campaign string options(description="")
   , utm_content string options(description="")
+  , utm_term string options(description="")
+  , lawyer_id string options(description="변호사 ID")
 )
 partition by b_date
 cluster by user_id, crt_dt
