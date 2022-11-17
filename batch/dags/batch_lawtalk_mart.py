@@ -1368,157 +1368,59 @@ with DAG(
             destination_dataset_table='lawtalk-bigquery.mart.lt_s_user_info',
             write_disposition = 'WRITE_APPEND',
             sql='''
-            WITH t_lawyer AS (
+                WITH t_lawyer AS (
+                    SELECT
+                    lawyer_id
+                    ,slug
+                    ,lawyer_name
+                    ,manager
+                    FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
+                    WHERE b_date = date('{{next_ds}}')
+                )
+                -- , BASE AS (
                 SELECT
-                lawyer_id
-                ,slug
-                ,lawyer_name
-                ,manager
-                FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
-                WHERE b_date = date('{{next_ds}}')
-            )
-            , BASE AS (
-            SELECT
-                date('{{next_ds}}') as b_date
-                ,role
-                ,_id user_id
-                ,username user_nickname
-                ,CASE WHEN _id = '620a0996ee8c9876d5f62d6a' OR slug = '탈퇴한 변호사' OR role = 'secession' THEN '탈퇴'
-                        WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
-                        WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
-                        WHEN role = 'lawyer_waiting' THEN '승인 대기'
-                        ELSE '활동'
-                END user_status
-                ,email user_email
-                ,CASE isNonMember WHEN 'True' THEN 1 ELSE 0 END is_non_member
-                ,EXTRACT(year FROM birth) birth_year
-                ,EXTRACT(year FROM date('{{next_ds}}')) - EXTRACT(year FROM birth) + 1 korean_age
-                ,sex
-                ,countryCode country_code
-                ,DATETIME(createdAt,'Asia/Seoul') crt_dt
-                ,DATETIME(updatedAt,'Asia/Seoul') upd_dt
-                ,CASE isEmailAccept WHEN True THEN 1 ELSE 0 END is_email_accept
-                -- ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'status': (.*?),") email_marketing_status
-                -- ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'startDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") email_marketing_start_date
-                -- ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'endDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") email_marketing_end_date
-                ,CASE isSMSAccept WHEN True THEN 1 ELSE 0 END is_sms_accept
-                -- ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'status': (.*?),") sms_marketing_status
-                -- ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'startDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") sms_marketing_start_date
-                -- ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'endDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") sms_marketing_end_date
-                ,provider
-                ,referrer
-                ,referrerOther referrer_other
-                ,recommender recommender_id
-                ,CAST(null AS string) recommender_name
-                ,CASE reviewCouponCheck WHEN 'True' THEN 1
-                                        WHEN 'False' THEN 0
-                                        ELSE null
-                END is_review_coupon
-                ,REGEXP_EXTRACT(utm, r"'utm_source': '(.*?)'") utm_source
-                ,REGEXP_EXTRACT(utm, r"'utm_medium': '(.*?)'") utm_medium
-                ,REGEXP_EXTRACT(utm, r"'utm_campaign': '(.*?)'") utm_campaign
-                ,REGEXP_EXTRACT(utm, r"'utm_content': '(.*?)'") utm_content
-            FROM `raw.users` LEFT JOIN t_lawyer ON `raw.users`.lawyer = t_lawyer.lawyer_id
-            )
-
-            , t_sms_marketing AS (
-            SELECT
-                user_id
-                ,sms_marketing_status_unnested_offset history_number
-                ,CASE WHEN sms_marketing_status_unnested = 'True' THEN 1 ELSE 0 END sms_marketing_status
-                ,DATETIME(PARSE_TIMESTAMP('%Y, %m, %e, %H, %M, %S',sms_marketing_start_date_unnested),'Asia/Seoul') sms_marketing_start_date
-                ,DATETIME(PARSE_TIMESTAMP('%Y, %m, %e, %H, %M, %S',sms_marketing_end_date_unnested),'Asia/Seoul') sms_marketing_end_date
-            FROM (
-            SELECT
-                _id user_id
-                ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'status': (.*?),") sms_marketing_status
-                ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'startDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") sms_marketing_start_date
-                ,REGEXP_EXTRACT_ALL(smsMarketingAccept, r"'endDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") sms_marketing_end_date
-            FROM `raw.users`) , UNNEST (sms_marketing_status) sms_marketing_status_unnested WITH OFFSET sms_marketing_status_unnested_offset
-                            , UNNEST (sms_marketing_start_date) sms_marketing_start_date_unnested WITH OFFSET sms_marketing_start_date_unnested_offset
-                            , UNNEST (sms_marketing_end_date) sms_marketing_end_date_unnested WITH OFFSET sms_marketing_end_date_unnested_offset
-            WHERE sms_marketing_status_unnested_offset = sms_marketing_start_date_unnested_offset
-            AND sms_marketing_start_date_unnested_offset = sms_marketing_end_date_unnested_offset
-            AND sms_marketing_status_unnested_offset = sms_marketing_end_date_unnested_offset
-            )
-
-            , t_sms_marketing2 AS (
-            SELECT
-                t_sms_marketing.user_id
-                ,sms_marketing_status
-                ,sms_marketing_start_date
-                ,sms_marketing_end_date
-            FROM t_sms_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_sms_marketing GROUP BY 1) sub
-                                            ON t_sms_marketing.user_id = sub.user_id
-                                            AND t_sms_marketing.history_number = sub.history_number
-            )
-
-            , t_email_marketing AS (
-            SELECT
-                user_id
-                ,email_marketing_status_unnested_offset history_number
-                ,CASE WHEN email_marketing_status_unnested = 'True' THEN 1 ELSE 0 END email_marketing_status
-                ,DATETIME(PARSE_TIMESTAMP('%Y, %m, %e, %H, %M, %S',email_marketing_start_date_unnested),'Asia/Seoul') email_marketing_start_date
-                ,DATETIME(PARSE_TIMESTAMP('%Y, %m, %e, %H, %M, %S',email_marketing_end_date_unnested),'Asia/Seoul') email_marketing_end_date
-            FROM (
-            SELECT
-                _id user_id
-                ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'status': (.*?),") email_marketing_status
-                ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'startDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") email_marketing_start_date
-                ,REGEXP_EXTRACT_ALL(emailMarketingAccept, r"'endDate': datetime\.datetime\((\d{4}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2}, \d{1,2})") email_marketing_end_date
-                FROM `raw.users`) , UNNEST (email_marketing_status) email_marketing_status_unnested WITH OFFSET email_marketing_status_unnested_offset
-                                , UNNEST (email_marketing_start_date) email_marketing_start_date_unnested WITH OFFSET email_marketing_start_date_unnested_offset
-                                , UNNEST (email_marketing_end_date) email_marketing_end_date_unnested WITH OFFSET email_marketing_end_date_unnested_offset
-            WHERE email_marketing_status_unnested_offset = email_marketing_start_date_unnested_offset
-            AND email_marketing_start_date_unnested_offset = email_marketing_end_date_unnested_offset
-            AND email_marketing_status_unnested_offset = email_marketing_end_date_unnested_offset
-            )
-
-            , t_email_marketing2 AS (
-            SELECT
-                t_email_marketing.user_id
-                ,email_marketing_status
-                ,email_marketing_start_date
-                ,email_marketing_end_date
-            FROM t_email_marketing INNER JOIN (SELECT user_id, MAX(history_number) history_number FROM t_email_marketing GROUP BY 1) sub
-                                            ON t_email_marketing.user_id = sub.user_id
-                                            AND t_email_marketing.history_number = sub.history_number
-            )
-
-            SELECT
-                b_date
-                ,CASE WHEN role = 'secession' THEN 'user' ELSE role END role
-                ,user_id
-                ,user_nickname
-                ,user_status
-                ,user_email
-                ,is_non_member
-                ,CAST(birth_year as numeric) birth_year
-                ,CAST(korean_age as numeric) korean_age
-                ,sex
-                ,CAST(country_code as numeric) country_code
-                ,crt_dt
-                ,upd_dt
-                ,is_email_accept
-                ,email_marketing_status is_email_marketing_accept
-                -- ,email_marketing_start_date email_marketing_accept_start_date
-                ,sms_marketing_end_date email_marketing_accept_end_date
-                ,is_sms_accept
-                ,sms_marketing_status is_sms_marketing_accept
-                -- ,sms_marketing_start_date sms_marketing_accept_start_date
-                ,email_marketing_end_date sms_marketing_accept_end_date
-                ,provider
-                ,referrer
-                ,referrer_other
-                ,recommender_id
-                ,recommender_name
-                ,is_review_coupon
-                ,utm_source
-                ,utm_medium
-                ,utm_campaign
-                ,utm_content
-            FROM BASE LEFT JOIN t_sms_marketing2 USING (user_id)
-                    LEFT JOIN t_email_marketing2 USING (user_id)
+                    date('{{next_ds}}') as b_date
+                    ,CASE WHEN role = 'secession' THEN 'user' ELSE role END role
+                    ,_id user_id
+                    ,username user_nickname
+                    ,CASE WHEN _id = '620a0996ee8c9876d5f62d6a' OR slug = '탈퇴한 변호사' OR role = 'secession' THEN '탈퇴'
+                            WHEN _id = '620a0a07ee8c9876d5f671d8' OR slug = '미활동 변호사' THEN '미활동'
+                            WHEN slug LIKE '%(탈퇴보류)' THEN '탈퇴 보류'
+                            WHEN role = 'lawyer_waiting' THEN '승인 대기'
+                            ELSE '활동'
+                    END user_status
+                    ,email user_email
+                    ,CASE isNonMember WHEN TRUE THEN 1 ELSE 0 END is_non_member
+                    ,CAST(EXTRACT(year FROM birth) as numeric) birth_year
+                    ,CAST(EXTRACT(year FROM date('{{next_ds}}')) - EXTRACT(year FROM birth) + 1 as numeric) korean_age
+                    ,sex
+                    ,SAFE_CAST(countryCode as numeric) country_code
+                    ,DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') crt_dt
+                    ,DATETIME(TIMESTAMP(updatedAt),'Asia/Seoul') upd_dt
+                    ,CASE isEmailAccept WHEN True THEN 1 ELSE 0 END is_email_accept
+                    ,CASE JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.status') WHEN 'true' THEN 1 ELSE 0 END is_email_marketing_accept
+                    -- ,JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.startDate') email_marketing_accept_start_date
+                    ,JSON_VALUE(emailMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(emailMarketingAccept)) - 1], '$.endDate') email_marketing_accept_end_date
+                    ,CASE isSMSAccept WHEN True THEN 1 ELSE 0 END is_sms_accept
+                    ,CASE JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.status') WHEN 'true' THEN 1 ELSE 0 END is_sms_marketing_accept
+                    -- ,JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.startDate') sms_marketing_accept_start_date
+                    ,JSON_VALUE(smsMarketingAccept[ARRAY_LENGTH(JSON_EXTRACT_ARRAY(smsMarketingAccept)) - 1], '$.endDate') sms_marketing_accept_end_date
+                    ,provider
+                    ,referrer
+                    ,referrerOther referrer_other
+                    ,recommender recommender_id
+                    ,CAST(null AS string) recommender_name
+                    ,CASE reviewCouponCheck WHEN TRUE THEN 1
+                                            WHEN FALSE THEN 0
+                                            ELSE null
+                    END is_review_coupon
+                    ,JSON_VALUE(utm,'$.utm_source') utm_source
+                    ,JSON_VALUE(utm,'$.utm_medium') utm_medium
+                    ,JSON_VALUE(utm,'$.utm_campaign') utm_campaign
+                    ,JSON_VALUE(utm,'$.utm_content') utm_content
+                    ,JSON_VALUE(utm,'$.utm_term') utm_term
+                    ,lawyer_id
+                FROM `lt_src.users` LEFT JOIN t_lawyer ON `lt_src.users`.lawyer = t_lawyer.lawyer_id
                 '''
         )
         delete_lt_s_user_info >> insert_lt_s_user_info
