@@ -1199,31 +1199,30 @@ with DAG(
             destination_dataset_table='lawtalk-bigquery.mart.lt_r_lawyer_slot',
             write_disposition = 'WRITE_APPEND',
             sql='''
-            WITH t_lawyer AS (
-            SELECT
-                b_date
-                ,lawyer_id
-                ,slug
-                ,lawyer_name
-                ,manager
-            FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
-            WHERE b_date BETWEEN date('{{next_ds}}') - 11 AND date('{{next_ds}}')
-            )
-            , BASE AS (
-            SELECT
-                lawyer
-                ,daystring
-                ,NULLIF(phone_times,'') phone_times
-                ,NULLIF(video_times,'') video_times
-                ,NULLIF(visiting_times,'') visiting_times
-                ,DATETIME(createdAt,'Asia/Seoul') slot_crt_dt
-                ,ROW_NUMBER() OVER (PARTITION BY lawyer, daystring ORDER BY DATETIME(createdAt,'Asia/Seoul') DESC) rn
-            FROM `lawtalk-bigquery.raw.adviceschedules`, UNNEST(REGEXP_EXTRACT_ALL(times,r"'phone': \[(.*?)\]")) phone_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'video': \[(.*?)\]")) video_times, UNNEST(REGEXP_EXTRACT_ALL(times,r"'visiting': \[(.*?)\]")) visiting_times
-            WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
-            QUALIFY rn = 1
-            )
+                WITH t_lawyer AS (
+                SELECT
+                    b_date
+                    ,lawyer_id
+                    ,slug
+                    ,lawyer_name
+                    ,manager
+                FROM `lawtalk-bigquery.mart.lt_s_lawyer_info`
+                WHERE b_date BETWEEN date('{{next_ds}}') - 11 AND date('{{next_ds}}')
+                )
 
-            SELECT
+                , BASE AS (
+                SELECT
+                lawyer
+                ,dayString
+                ,times
+                ,DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') slot_crt_dt
+                ,ROW_NUMBER() OVER (PARTITION BY lawyer, daystring ORDER BY DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') DESC) rn
+                FROM `lawtalk-bigquery.lt_src.adviceschedules`
+                WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
+                QUALIFY rn = 1 
+                )
+
+                SELECT
                 DATE(slot_opened_dt) as b_date
                 ,t_slot.lawyer lawyer_id
                 ,slug
@@ -1246,47 +1245,47 @@ with DAG(
                 ,t_advice.counsel_id
                 ,counsel_crt_dt
                 ,counsel_status
-            FROM (
-            SELECT
+                FROM (
+                SELECT
                 lawyer
-                ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(phone_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+                ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(phone_time_slot AS INT) * 30 MINUTE) slot_opened_dt
                 ,'phone' as kind
                 ,slot_crt_dt
-            FROM BASE, UNNEST(SPLIT(phone_times,', ')) phone_time_slot
+                FROM BASE, UNNEST(JSON_VALUE_ARRAY(times,'$.phone')) phone_time_slot
 
-            UNION ALL
+                UNION ALL
 
-            SELECT
-                lawyer
-                ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
-                ,'video' as kind
-                ,slot_crt_dt
-            FROM BASE, UNNEST(SPLIT(video_times,', ')) video_time_slot
+                SELECT
+                    lawyer
+                    ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(video_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+                    ,'video' as kind
+                    ,slot_crt_dt
+                FROM BASE, UNNEST(JSON_VALUE_ARRAY(times,'$.video')) video_time_slot
 
-            UNION ALL
+                UNION ALL
 
-            SELECT
-                lawyer
-                ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
-                ,'visiting' as kind
-                ,slot_crt_dt
-            FROM BASE, UNNEST(SPLIT(visiting_times,', ')) visiting_time_slot
+                SELECT
+                    lawyer
+                    ,DATE_ADD(DATETIME(dayString), INTERVAL CAST(REPLACE(visiting_time_slot,' ','') AS INT) * 30 MINUTE) slot_opened_dt
+                    ,'visiting' as kind
+                    ,slot_crt_dt
+                FROM BASE, UNNEST(JSON_VALUE_ARRAY(times,'$.visiting')) visiting_time_slot
 
-            ) t_slot LEFT JOIN (SELECT
-                                    counsel_exc_dt
-                                    ,counsel_crt_dt
-                                    ,kind
-                                    ,lawyer_id
-                                    ,counsel_status
-                                    ,counsel_id
-                                FROM `lawtalk-bigquery.mart.lt_r_user_pay_counsel`
-                                WHERE DATE(counsel_exc_dt) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
-                                AND counsel_status != 'reserved') t_advice
-                            ON t_slot.lawyer = t_advice.lawyer_id
-                            AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
-                            AND t_slot.kind = t_advice.kind
-                    LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
-                                        AND DATE(t_slot.slot_crt_dt) = t_lawyer.b_date
+                ) t_slot LEFT JOIN (SELECT
+                                        counsel_exc_dt
+                                        ,counsel_crt_dt
+                                        ,kind
+                                        ,lawyer_id
+                                        ,counsel_status
+                                        ,counsel_id
+                                    FROM `lawtalk-bigquery.mart.lt_r_user_pay_counsel`
+                                    WHERE DATE(counsel_exc_dt) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}')
+                                    AND counsel_status != 'reserved') t_advice
+                                ON t_slot.lawyer = t_advice.lawyer_id
+                                AND t_slot.slot_opened_dt = t_advice.counsel_exc_dt
+                                AND t_slot.kind = t_advice.kind
+                        LEFT JOIN t_lawyer ON t_slot.lawyer = t_lawyer.lawyer_id
+                                            AND DATE(t_slot.slot_crt_dt) = t_lawyer.b_date
                     '''
         )
 
