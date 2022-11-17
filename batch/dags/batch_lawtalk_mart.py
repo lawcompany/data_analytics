@@ -638,6 +638,8 @@ with DAG(
     #description: [로톡] 의뢰인 유료 상담로그(advice와 advicetransactions를 조인하여 필요정보만 발췌하여 정리한 테이블)
     #table_type: raw data
     #reprocessing date range: b_date기준 12일치 재처리(D-12 ~ D-1) : 상담예약 시 해당일자를 포함하여 D+7까지로 상담일자를 설정할 수 있고 상담일로부터 D+5까지 상담결과지 작성이 가능하여 D+12까지 데이터 변경될 가능성 있음
+    #modified history :
+    # 키워드-분야,지역 매핑 정확도 개선 로직 추가 (지라이슈:DATAANAL-115) 2022-11-17 by LJA
     ########################################################
 
     with TaskGroup(
@@ -724,7 +726,7 @@ with DAG(
                                 else a.context
                            end as context
                          , a.extra_info
-                         , coalesce(a.context_additional, b.name, c.name, 'N/A') as context_additional
+                         , coalesce(a.context_additional, b.name, c.name, d.cat, e.large_cat, 'N/A') as context_additional
                          , a.adid
                          , a.pay_req_dt
                          , a.pay_crt_dt
@@ -758,6 +760,29 @@ with DAG(
                         on coalesce(a.context_additional,a.extra_info) = b.name
                       left join `lawtalk-bigquery.raw.adlocationgroups` c
                         on coalesce(a.context_additional,a.extra_info) = c.name
+                      left join -- 키워드-분야 매핑 코드테이블에서 추가 보정 2022-11-17 by LJA
+                           (
+                             select array_to_string(array_agg(b.name),',') as cat, a.name as keyword
+                               from
+                                   (
+                                     select json_value(cat) cat
+                                          , name
+                                       from `lt_src.adkeywords` a
+                                          , unnest(json_query_array(adcategories)) cat
+                                   ) a
+                               inner join `lt_src.adcategories` b
+                                  on a.cat = b._id
+                             group by a.name
+                           ) d
+                        on replace(a.extra_info,' ','') = d.keyword
+                      left join -- 키워드가 지역명을 포함하고 있을 때 추가 보정 2022-11-17 by LJA
+                           (
+                             select a.name cat, b.name large_cat
+                               from `lt_src.adlocations` a
+                               inner join `lt_src.adlocationgroups` b
+                                  on a.adLocationGroup = b._id
+                           ) e
+                        on replace(a.extra_info,' ','') = e.cat
                 )
                 select coalesce(date(a.counsel_crt_dt),date(pay_crt_dt)) as b_date
                      , coalesce(a.counsel_id,b.counsel_id) as counsel_id
@@ -824,6 +849,7 @@ with DAG(
     #reprocessing date range: b_date기준 5일치 재처리(D-6 ~ D-1) : lt_r_user_pay_counsel.counsel_exc_dt기준으로 D+5까지 counsel_status가 업데이트 될 수 있으므로 5일치 재처리
     #modified history :
     #    20220926 - b_date 기준을 상담실행일자(counsel_exc_dt)로 변경하고 재처리 기간을 5일치로 변경(변경된 기준으로 데이터 재적재 완료) by LJA
+    #    20221117 - cat_mapping_standard=complex 값을 추가하여 의뢰인 입력 키워드 기반의 분야가 N/A면 상담결과지의 분야로 매핑하도록 기준 추가 by LJA
     ########################################################
 
     with TaskGroup(
@@ -915,6 +941,52 @@ with DAG(
                         , a.manager
                         , a.category_id
                         , a.category_name
+                union all
+                -- 분야기준 혼합 : 의뢰인 입력 키워드 기반의 분야가 N/A면 상담결과지의 분야로 매핑
+                select a.b_date
+                     , a.lawyer_id
+                     , a.slug
+                     , a.lawyer_name
+                     , a.manager
+                     , 'complex' as cat_mapping_standard
+                     , coalesce(b._id, c._id, 'N/A') as category_id
+                     , a.cat as category_name
+                     , sum(case when a.kind='phone' then a.counsel_cnt end) as phone_cnt
+                     , sum(case when a.kind='phone' then a.counsel_price end) as phone_price
+                     , sum(case when a.kind='video' then a.counsel_cnt end) as video_cnt
+                     , sum(case when a.kind='video' then a.counsel_price end) as video_price
+                     , sum(case when a.kind='visiting' then a.counsel_cnt end) as visiting_cnt
+                     , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
+                  from
+                      (
+                        select date(a.counsel_exc_dt) as b_date
+                             , a.lawyer_id
+                             , a.slug
+                             , a.lawyer_name
+                             , a.manager
+                             , cat
+                             , a.counsel_id
+                             , a.kind
+                             , safe_cast(1/array_length(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ',')) as numeric) as counsel_cnt
+                             , safe_cast(a.origin_fee * (1/array_length(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ','))) as numeric) as counsel_price
+                          from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+                             , unnest(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ',')) as cat
+                         where a.b_date >='2022-06-16'
+                           and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                           and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
+                           and a.counsel_status = 'complete'
+                      ) a
+                  left join `lawtalk-bigquery.raw.adcategories` b
+                    on a.cat = b.name
+                  left join `lawtalk-bigquery.raw.adlocationgroups` c
+                    on a.cat = c.name
+                 group by a.b_date
+                        , a.lawyer_id
+                        , a.slug
+                        , a.lawyer_name
+                        , a.manager
+                        , coalesce(b._id, c._id, 'N/A')
+                        , a.cat
                 '''
         )
 
@@ -927,6 +999,7 @@ with DAG(
     #table_type: w단 일자별 집계
     #reprocessing date range: b_date기준 5일치 재처리(D-6 ~ D-1) : lt_r_user_pay_counsel.counsel_exc_dt기준으로 D+5까지 counsel_status가 업데이트 될 수 있으므로 5일치 재처리
     #modified history :
+    #    20221117 - cat_mapping_standard=complex 값을 추가하여 의뢰인 입력 키워드 기반의 분야가 N/A면 상담결과지의 분야로 매핑하도록 기준 추가 by LJA
     ########################################################
 
     with TaskGroup(
@@ -1038,6 +1111,64 @@ with DAG(
                         , a.manager
                         , a.category_id
                         , a.category_name
+                 union all
+                 -- 분야기준 혼합 : 의뢰인 입력 키워드 기반의 분야가 N/A면 상담결과지의 분야로 매핑
+                 select a.b_date
+                      , a.user_id
+                      , a.user_email
+                      , a.user_name
+                      , a.user_nickname
+                      , 'complex' as cat_mapping_standard
+                      , coalesce(b._id, c._id, 'N/A') as category_id
+                      , a.cat as category_name
+                      , a.lawyer_id
+                      , a.slug
+                      , a.lawyer_name
+                      , a.manager
+                      , sum(case when a.kind='phone' then a.counsel_cnt end) as phone_cnt
+                      , sum(case when a.kind='phone' then a.counsel_price end) as phone_price
+                      , sum(case when a.kind='video' then a.counsel_cnt end) as video_cnt
+                      , sum(case when a.kind='video' then a.counsel_price end) as video_price
+                      , sum(case when a.kind='visiting' then a.counsel_cnt end) as visiting_cnt
+                      , sum(case when a.kind='visiting' then a.counsel_price end) as visiting_price
+                   from
+                       (
+                         select date(a.counsel_exc_dt) as b_date
+                              , a.user_id
+                              , a.user_email
+                              , a.user_name
+                              , a.user_nickname
+                              , a.lawyer_id
+                              , a.slug
+                              , a.lawyer_name
+                              , a.manager
+                              , cat
+                              , a.counsel_id
+                              , a.kind
+                              , safe_cast(1/array_length(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ',')) as numeric) as counsel_cnt
+                              , safe_cast(a.origin_fee * (1/array_length(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ','))) as numeric) as counsel_price
+                           from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+                              , unnest(split((case when a.context_additional='N/A' then a.category_name else a.context_additional end), ',')) as cat
+                          where a.b_date >='2022-06-16'
+                            and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                            and date(a.counsel_exc_dt) between date('{{next_ds}}')-5 and date('{{next_ds}}')
+                            and a.counsel_status = 'complete'
+                       ) a
+                   left join `lawtalk-bigquery.raw.adcategories` b
+                     on a.cat = b.name
+                   left join `lawtalk-bigquery.raw.adlocationgroups` c
+                     on a.cat = c.name
+                  group by a.b_date
+                         , a.user_id
+                         , a.user_email
+                         , a.user_name
+                         , a.user_nickname
+                         , a.lawyer_id
+                         , a.slug
+                         , a.lawyer_name
+                         , a.manager
+                         , coalesce(b._id, c._id, 'N/A')
+                         , a.cat
                 '''
         )
 
