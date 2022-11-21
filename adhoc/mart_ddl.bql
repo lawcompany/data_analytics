@@ -367,3 +367,34 @@ options
     labels=[("service","lawtalk")]
 )
 ;
+
+CREATE TABLE `mart.lt_s_posts`
+(
+b_date date options(description="기준일자")
+, post_id string options(description="포스트 ID")
+, post_number numeric options(description="포스트 번호")
+, crt_dt datetime options(description="포스트 작성일시")
+, upd_dt datetime options(description="포스트 수정일시")
+, type string options(description="포스트 종류 [case: 해결사례, guide: 법률가이드, essay: 변호사 에세이]")
+, case_result string options(description="해결사례 사건 결과")
+, is_published int options(description="발행 여부 [1: 발행, 0: 미발행]")
+, is_lawyer_pick int options(description="대표 포스트 설정 여부 [1: 설정, 0: 미설정]")
+, pick_rank numeric options(description="대표 포스트 노출 순위")
+, lawyer_id string options(description="변호사 ID")
+, lawyer_slug string options(description="변호사 slug")
+, lawyer_name string options(description="변호사 성명")
+, manager string options(description="변호사 담당 BM 성명")
+, is_paused int options(description="변호사 일시정지 여부 [1: 일시정지, 0: 활동]")
+, title string options(description="포스트 제목")
+, body string options(description="포스트 내용")
+, agg_view_cnt numeric options(description="누적 조회수")
+, category_name array<string> options(description="카테고리명")
+)
+PARTITION BY b_date
+CLUSTER BY crt_dt, lawyer_id
+OPTIONS
+(
+    description="[로톡] 포스트(해결사례, 법률가이드, 변호사에세이) 정보",
+    labels=[("service","lawtalk")]
+)
+;
