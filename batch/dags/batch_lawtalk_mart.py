@@ -1422,6 +1422,7 @@ with DAG(
                 FROM `lt_src.users` LEFT JOIN t_lawyer ON `lt_src.users`.lawyer = t_lawyer.lawyer_id
                 '''
         )
+
         delete_lt_s_user_info >> insert_lt_s_user_info
 
 
@@ -1591,7 +1592,90 @@ with DAG(
         delete_lt_s_qna >> insert_lt_s_qna
 
 
+    ########################################################
+    #dataset: mart
+    #table_name: lt_s_posts
+    #description: [로톡] 포스트(해결사례, 법률가이드, 변호사에세이) 정보
+    #table_type: s단 일자별 스냅샷
+    #reprocessing date range: b_date 기준 1일치 처리 (해당일자 시점의 스냅샷 형태로 하루치만 처리하면 됨)
+    ########################################################
+
+    with TaskGroup(
+    group_id="lt_s_posts"
+    ) as lt_s_posts:
+
+        delete_lt_s_posts = BigQueryOperator(
+            task_id = 'delete_lt_s_posts',
+            use_legacy_sql = False,
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_posts` where b_date = date('{{next_ds}}')"
+        )
+
+        insert_lt_s_posts = BigQueryExecuteQueryOperator(
+            task_id='insert_lt_s_posts',
+            use_legacy_sql = False,
+            destination_dataset_table='lawtalk-bigquery.mart.lt_s_posts',
+            write_disposition = 'WRITE_APPEND',
+            sql='''
+                WITH t_post_cat AS ( 
+                SELECT
+                    _id post_id
+                    ,number post_number
+                    ,category
+                    ,type
+                    ,JSON_VALUE(`case`,'$.result') case_result
+                    ,CASE isPublished WHEN true THEN 1 ELSE 0 END is_published
+                    ,lawyer lawyer_id
+                    ,title
+                    ,REGEXP_REPLACE(htmlContent, r'<[^>]*>|\&([^;])*;', '') body
+                    ,DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') crt_dt
+                    ,DATETIME(TIMESTAMP(updatedAt),'Asia/Seoul') upd_dt
+                    ,hits agg_view_cnt
+                    ,isLawyerPick
+                    ,pickRank
+                FROM `lt_src.posts` t_post, UNNEST(JSON_VALUE_ARRAY(categories)) category 
+                )
+
+                SELECT
+                    DATE('{{next_ds}}') as b_date
+                    ,post_id
+                    ,CAST(post_number as numeric) post_number
+                    ,crt_dt
+                    ,upd_dt
+                    ,type
+                    ,case_result
+                    ,is_published
+                    ,CASE isLawyerPick WHEN True THEN 1 WHEN False THEN 0 ELSE NULL END is_lawyer_pick
+                    ,SAFE_CAST(pickRank as numeric) pickRank
+                    ,lawyer_id
+                    ,lawyer_slug
+                    ,lawyer_name
+                    ,manager
+                    ,is_paused
+                    ,title
+                    ,body
+                    ,CAST(agg_view_cnt as numeric) agg_view_cnt
+                    ,ARRAY_AGG(name) category_name
+                    FROM t_post_cat INNER JOIN `lt_src.adcategories` t_adc ON t_post_cat.category = t_adc._id
+                                    LEFT JOIN (SELECT 
+                                                lawyer_id
+                                                ,slug lawyer_slug
+                                                ,lawyer_name
+                                                ,manager
+                                                ,is_paused
+                                                FROM `mart.lt_s_lawyer_info`
+                                                WHERE b_date = DATE('{{next_ds}}')
+                                            ) 
+                                    USING (lawyer_id)
+                    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18
+                '''
+        )
+
+        delete_lt_s_posts >> insert_lt_s_posts
+
+
+
 start >> lt_r_lawyer_ad_sales >> lt_s_lawyer_ads >> lt_s_lawyer_info >> lt_s_user_info >> lt_s_qna
 start >> lt_r_user_pay_counsel >> lt_w_lawyer_counsel >> lt_s_lawyer_info
 lt_s_lawyer_info >> lt_r_lawyer_slot >> lt_w_lawyer_slot
+lt_s_lawyer_info >> lt_s_posts
 lt_r_user_pay_counsel >> lt_w_user_counsel
