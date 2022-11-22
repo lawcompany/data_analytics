@@ -1645,7 +1645,7 @@ with DAG(
                     ,case_result
                     ,is_published
                     ,CASE isLawyerPick WHEN True THEN 1 WHEN False THEN 0 ELSE NULL END is_lawyer_pick
-                    ,SAFE_CAST(pickRank as numeric) pickRank
+                    ,SAFE_CAST(pickRank as numeric) pick_rank
                     ,lawyer_id
                     ,lawyer_slug
                     ,lawyer_name
