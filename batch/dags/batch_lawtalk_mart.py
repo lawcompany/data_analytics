@@ -43,7 +43,7 @@ with DAG(
         delete_lt_s_lawyer_info = BigQueryOperator(
             task_id = 'delete_lt_s_lawyer_info',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_s_lawyer_info` where b_date = date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_lawyer_info` where b_date = date('{{next_ds}}') and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1"
         )
 
         insert_lt_s_lawyer_info = BigQueryExecuteQueryOperator(
@@ -293,6 +293,7 @@ with DAG(
                 ) a
                 full join yesterday_lawyer_info b -- 휴면 여부 확인을 위해 전일자 데이터 발췌
                     on a.lawyer_id = b.lawyer_id
+                where date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                 group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
                 -- group by 하는 이유 : 탈퇴한변호사(lawyer_id =5e2169cb6f333d01bee4924a)데이터가 계속 중복되는 이슈 발생
                 '''
@@ -582,7 +583,7 @@ with DAG(
         delete_lt_s_lawyer_ads = BigQueryOperator(
             task_id = 'delete_lt_s_lawyer_ads',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_s_lawyer_ads` where b_date = date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_lawyer_ads` where b_date = date('{{next_ds}}') and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1"
         )
 
         insert_lt_s_lawyer_ads = BigQueryExecuteQueryOperator(
@@ -625,6 +626,7 @@ with DAG(
                    and a.order_status = 'apply'
                    and date('{{next_ds}}') between date(a.ad_start_dt) and date(a.ad_end_dt)
                    and b.lawyer_id is null
+                   and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                  group by 1,2,3,4,5,6,7,8 -- 20221012 by jungarui 무료광고 체크 시 중복건 발생 확인하여 수정
                 '''
         )
@@ -1219,7 +1221,7 @@ with DAG(
                 ,ROW_NUMBER() OVER (PARTITION BY lawyer, daystring ORDER BY DATETIME(TIMESTAMP(createdAt),'Asia/Seoul') DESC) rn
                 FROM `lawtalk-bigquery.lt_src.adviceschedules`
                 WHERE DATE(daystring) BETWEEN date('{{next_ds}}') -5 and date('{{next_ds}}') +7
-                QUALIFY rn = 1 
+                QUALIFY rn = 1
                 )
 
                 SELECT
@@ -1358,7 +1360,7 @@ with DAG(
         delete_lt_s_user_info = BigQueryOperator(
             task_id = 'delete_lt_s_user_info',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_s_user_info` where b_date = date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_user_info` where b_date = date('{{next_ds}}') and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1"
         )
 
         insert_lt_s_user_info = BigQueryExecuteQueryOperator(
@@ -1420,6 +1422,7 @@ with DAG(
                     ,JSON_VALUE(utm,'$.utm_term') utm_term
                     ,lawyer_id
                 FROM `lt_src.users` LEFT JOIN t_lawyer ON `lt_src.users`.lawyer = t_lawyer.lawyer_id
+                where date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                 '''
         )
 
@@ -1441,7 +1444,7 @@ with DAG(
         delete_lt_s_qna = BigQueryOperator(
             task_id = 'delete_lt_s_qna',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_s_qna` where b_date = date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_qna` where b_date = date('{{next_ds}}') and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1"
         )
 
         insert_lt_s_qna = BigQueryExecuteQueryOperator(
@@ -1586,6 +1589,7 @@ with DAG(
                     END is_direct_published
                     ,DATETIME(TIMESTAMP(expectPublishedAt),'Asia/Seoul') expect_published_dt
                 FROM t_question_base LEFT JOIN t_answer_base USING (question_id)
+                where date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                 '''
         )
 
@@ -1607,7 +1611,7 @@ with DAG(
         delete_lt_s_posts = BigQueryOperator(
             task_id = 'delete_lt_s_posts',
             use_legacy_sql = False,
-            sql = "delete from `lawtalk-bigquery.mart.lt_s_posts` where b_date = date('{{next_ds}}')"
+            sql = "delete from `lawtalk-bigquery.mart.lt_s_posts` where b_date = date('{{next_ds}}') and date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1"
         )
 
         insert_lt_s_posts = BigQueryExecuteQueryOperator(
@@ -1616,7 +1620,7 @@ with DAG(
             destination_dataset_table='lawtalk-bigquery.mart.lt_s_posts',
             write_disposition = 'WRITE_APPEND',
             sql='''
-                WITH t_post_cat AS ( 
+                WITH t_post_cat AS (
                 SELECT
                     _id post_id
                     ,number post_number
@@ -1632,7 +1636,7 @@ with DAG(
                     ,hits agg_view_cnt
                     ,isLawyerPick
                     ,pickRank
-                FROM `lt_src.posts` t_post, UNNEST(JSON_VALUE_ARRAY(categories)) category 
+                FROM `lt_src.posts` t_post, UNNEST(JSON_VALUE_ARRAY(categories)) category
                 )
 
                 SELECT
@@ -1656,7 +1660,7 @@ with DAG(
                     ,CAST(agg_view_cnt as numeric) agg_view_cnt
                     ,ARRAY_AGG(name) category_name
                     FROM t_post_cat INNER JOIN `lt_src.adcategories` t_adc ON t_post_cat.category = t_adc._id
-                                    LEFT JOIN (SELECT 
+                                    LEFT JOIN (SELECT
                                                 lawyer_id
                                                 ,slug lawyer_slug
                                                 ,lawyer_name
@@ -1664,8 +1668,9 @@ with DAG(
                                                 ,is_paused
                                                 FROM `mart.lt_s_lawyer_info`
                                                 WHERE b_date = DATE('{{next_ds}}')
-                                            ) 
+                                            )
                                     USING (lawyer_id)
+                    where date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18
                 '''
         )
