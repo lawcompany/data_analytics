@@ -785,6 +785,8 @@ with DAG(
                      , case when coalesce(h._3months_slot_cnt_evening,0) = 0 or coalesce(h._3months_reserve_cnt_evening,0) = 0 then 0
                             else coalesce(h._3months_reserve_cnt_evening,0)/coalesce(h._3months_slot_cnt_evening,0)
                        end as _3months_slot_counsel_rate_evening
+                     , case when g.bef_ads_tot_fee is null then 0 else 1 end as is_bef_ad
+                     , case when g._3months_tot_fee is null then 0 else 1 end as is_bef_ad
                   from main_info a
                   left join profile b
                     on a.slug = b.slug
