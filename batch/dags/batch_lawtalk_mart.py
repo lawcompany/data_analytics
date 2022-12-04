@@ -1677,10 +1677,87 @@ with DAG(
 
         delete_lt_s_posts >> insert_lt_s_posts
 
+    ########################################################
+    #dataset: mart
+    #table_name: lt_r_user_counsel_formkt
+    #description: [로톡] 의뢰인 유료 상담로그(마케팅팀을 위한 테이블)
+    #table_type: raw data
+    #reprocessing date range: b_date기준 12일치 재처리(D-12 ~ D-1) : 상담예약 시 해당일자를 포함하여 D+7까지로 상담일자를 설정할 수 있고 상담일로부터 D+5까지 상담결과지 및 후기 작성이 가능하여 D+12까지 데이터 변경될 가능성 있음
+    #modified history :
+    ########################################################
+
+    with TaskGroup(
+        group_id="lt_r_user_counsel_formkt"
+        ) as lt_r_user_counsel_formkt:
+
+        delete_lt_r_user_counsel_formkt = BigQueryOperator(
+            task_id = 'delete_lt_r_user_counsel_formkt',
+            use_legacy_sql = False,
+            sql = "delete from `lawtalk-bigquery.mart.lt_r_user_counsel_formkt` where b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')"
+        )
+
+        insert_lt_r_user_counsel_formkt = BigQueryExecuteQueryOperator(
+            task_id='insert_lt_r_user_counsel_formkt',
+            use_legacy_sql = False,
+            destination_dataset_table='lawtalk-bigquery.mart.lt_r_user_counsel_formkt',
+            write_disposition = 'WRITE_APPEND',
+            sql='''
+              select  a.b_date
+                    , format_datetime("%H:%M:%S", coalesce(a.counsel_crt_dt,a.pay_crt_dt)) as b_time
+                    , a.counsel_id
+                    , a.pay_id
+                    , a.user_id
+                    , a.user_email
+                    , a.user_name
+                    , a.user_nickname
+                    , a.lawyer_id
+                    , a.slug
+                    , a.lawyer_name
+                    , a.manager
+                    , a.kind
+                    , a.pay_status
+                    , a.counsel_status
+                    , a.coupon_id
+                    , b.campaign as coupon_campaign
+                    , a.pay_crt_dt
+                    , a.counsel_crt_dt
+                    , a.counsel_exc_dt
+                    , a.extra_info as keyword
+                    , a.category_id
+                    , a.category_name
+                    , coalesce(c._id, d._id, 'N/A') as keyword_category_id
+                    , keyword_cat as keyword_category_name
+                    , coalesce(e._id, f._id, 'N/A') as complex_category_id
+                    , complex_cat as complex_category_name
+                    , safe_cast(1/array_length(split((case when a.context_additional='N/A' then coalesce(a.category_name,'N/A') else coalesce(a.context_additional,'N/A') end), ',')) as numeric) as complex_counsel_cnt
+                    , safe_cast(a.origin_fee * (1/array_length(split((case when a.context_additional='N/A' then coalesce(a.category_name,'N/A') else coalesce(a.context_additional,'N/A') end), ','))) as numeric) as complex_counsel_price
+                from `lawtalk-bigquery.mart.lt_r_user_pay_counsel` a
+                   , unnest(split((case when a.context_additional='N/A' then coalesce(a.category_name,'N/A') else coalesce(a.context_additional,'N/A') end), ',')) as complex_cat with offset as pos1
+                   , unnest(split(coalesce(a.context_additional,'N/A'), ',')) as keyword_cat with offset as pos2
+                left join `lawtalk-bigquery.lt_src.advicecoupons` b
+                  on a.coupon_id = b._id
+                left join `lawtalk-bigquery.lt_src.adcategories` c
+                  on keyword_cat = c.name
+                left join `lawtalk-bigquery.lt_src.adlocationgroups` d
+                  on keyword_cat = d.name
+                left join `lawtalk-bigquery.lt_src.adcategories` e
+                  on complex_cat = e.name
+                left join `lawtalk-bigquery.lt_src.adlocationgroups` f
+                  on complex_cat = f.name
+                where a.b_date >='2022-06-16'
+                  and a.b_date between date('{{next_ds}}')-11 and date('{{next_ds}}')
+                  and (a.pay_status is not null or a.counsel_status is not null)
+                  and pos1=pos2
+                '''
+        )
+
+        delete_lt_r_user_counsel_formkt >> insert_lt_r_user_counsel_formkt
+
+
 
 
 start >> lt_r_lawyer_ad_sales >> lt_s_lawyer_ads >> lt_s_lawyer_info >> lt_s_user_info >> lt_s_qna
 start >> lt_r_user_pay_counsel >> lt_w_lawyer_counsel >> lt_s_lawyer_info
 lt_s_lawyer_info >> lt_r_lawyer_slot >> lt_w_lawyer_slot
 lt_s_lawyer_info >> lt_s_posts
-lt_r_user_pay_counsel >> lt_w_user_counsel
+lt_r_user_pay_counsel >> lt_r_user_counsel_formkt >> lt_w_user_counsel 

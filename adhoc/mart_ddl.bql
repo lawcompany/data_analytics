@@ -398,3 +398,47 @@ OPTIONS
     labels=[("service","lawtalk")]
 )
 ;
+
+
+
+
+CREATE TABLE `mart.lt_r_user_counsel_formkt`
+(
+b_date date options(description="기준일자")
+, b_time string options(description="기준일시")
+, counsel_id string options(description="유료상담ID")
+, pay_id string options(description="결제ID")
+, user_id string options(description="의뢰인ID(objectID)")
+, user_email string options(description="의뢰인 이메일")
+, user_name string options(description="의뢰인 이름")
+, user_nickname string options(description="의뢰인ID")
+, lawyer_id string options(description="변호사ID")
+, slug string options(description="슬러그")
+, lawyer_name string options(description="변호사 이름")
+, manager string options(description="담당BM")
+, kind string options(description="상담종류[phone,video,visiting,null]")
+, pay_status string options(description="결제 상태[상태값:비고란 참고]")
+, counsel_status string options(description="상담 상태[상태값:비고란 참고]")
+, coupon_id string options(description="쿠폰ID(쿠폰을 사용했다면 기록)")
+, coupon_campaign string options(description="쿠폰 캠페인명")
+, pay_crt_dt datetime options(description="결제 생성일시")
+, counsel_crt_dt datetime options(description="상담예약(시도)일시")
+, counsel_exc_dt datetime options(description="상담실행일시")
+, keyword string options(description="의뢰인이 입력한 키워드")
+, category_id string options(description="cat_mapping_standard=category 기준의 상담 카테고리ID")
+, category_name string options(description="cat_mapping_standard=category 기준의 상담 카테고리명")
+, keyword_category_id string options(description="cat_mapping_standard=keyword 기준의 상담 카테고리ID")
+, keyword_category_name string options(description="cat_mapping_standard=keyword 기준의 상담 카테고리명")
+, complex_category_id string options(description="cat_mapping_standard=complex 기준의 상담 카테고리ID")
+, complex_category_name string options(description="cat_mapping_standard=complex 기준의 상담 카테고리명")
+, complex_counsel_cnt numeric options(description="cat_mapping_standard=complex 기준의 상담 건수,키워드에 다중 카테고리가 매칭될 수 있음 그럴 경우 1/n 분배")
+, complex_counsel_price numeric options(description="cat_mapping_standard=complex 기준의 상담 금액,키워드에 다중 카테고리가 매칭될 수 있음 그럴 경우 1/n 분배")
+)
+partition by b_date
+cluster by user_id, lawyer_id
+options
+(
+    description="[로톡] 의뢰인 유료 상담로그(마케팅팀을 위한 테이블)",
+    labels=[("service","lawtalk")]
+)
+;
