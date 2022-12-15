@@ -295,7 +295,7 @@ def send_to_slack(text) :
     slack bot에 진행 메세지 보내기
     text : 메세지 내용 -- str
     '''
-    url = "https://hooks.slack.com/services/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"
+    url = "https://hooks.slack.com/services/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"
     requests.post(url, headers={'Content-type': 'application/json'}, json = {"text" : text})
 
     return
