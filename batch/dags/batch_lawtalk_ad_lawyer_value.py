@@ -646,6 +646,15 @@ with DAG(
                     ) a
                    group by 1
                 )
+                , corr_date as
+                (
+                      select case when extract(day from date('{{next_ds}}')) > 15 then extract(day from date('{{next_ds}}'))-15
+                                  else extract(day from date('{{next_ds}}'))
+                             end as bunja
+                           , case when extract(day from date('{{next_ds}}')) > 15 then extract(day from date_add(date(format_date('%Y-%m',date('{{next_ds}}'))||'-01'), interval 1 month)-1)-15
+                                  else 15
+                             end as bunmo
+                )
                 -- 이제 다 합치자!
                 select date('{{next_ds}}') as b_date
                      , a.slug
@@ -787,6 +796,18 @@ with DAG(
                        end as _3months_slot_counsel_rate_evening
                      , case when g.bef_ads_tot_fee is null then 0 else 1 end as is_bef_ad
                      , case when g._3months_tot_fee is null then 0 else 1 end as is_3months_ad
+                     , case when coalesce(f.ads_counsel_price,0)+coalesce(f.ads_predict_price,0)=0 then 1
+                            else coalesce(g.ads_tot_fee,0)/(coalesce(f.ads_counsel_price,0)+coalesce(f.ads_predict_price,0))
+                       end as ads_satisfy_val
+                     , case when coalesce(f.ads_counsel_price,0)+coalesce(f.ads_predict_price,0)=0 then 1
+                            else (coalesce(g.ads_tot_fee,0)*(z.bunja/z.bunmo))/(coalesce(f.ads_counsel_price,0)+coalesce(f.ads_predict_price,0))
+                       end as ads_satisfy_val_corr
+                     , case when coalesce(f.bef_ads_counsel_price,0)+coalesce(f.bef_ads_predict_price,0)=0 then 1
+                            else coalesce(g.bef_ads_tot_fee,0)/(coalesce(f.bef_ads_counsel_price,0)+coalesce(f.bef_ads_predict_price,0))
+                       end as bef_ads_satisfy_val
+                     , case when coalesce(f._3months_counsel_price,0)+coalesce(f._3months_predict_price,0)=0 then 1
+                            else coalesce(g._3months_tot_fee,0)/(coalesce(f._3months_counsel_price,0)+coalesce(f._3months_predict_price,0))
+                       end as _3months_satisfy_val
                   from main_info a
                   left join profile b
                     on a.slug = b.slug
@@ -802,6 +823,7 @@ with DAG(
                     on a.lawyer_id = g.lawyer_id
                   left join slot h
                     on a.lawyer_id = h.lawyer_id
+                  cross join corr_date z
                  where date('{{next_ds}}') = date(current_timestamp,'Asia/Seoul')-1
                 '''
         )
