@@ -808,6 +808,7 @@ with DAG(
                      , case when coalesce(f._3months_counsel_price,0)+coalesce(f._3months_predict_price,0)=0 then 1
                             else coalesce(g._3months_tot_fee,0)/(coalesce(f._3months_counsel_price,0)+coalesce(f._3months_predict_price,0))
                        end as _3months_satisfy_val
+                     , coalesce(g.ads_tot_fee,0)*(z.bunja/z.bunmo) as ads_tot_fee_corr
                   from main_info a
                   left join profile b
                     on a.slug = b.slug
