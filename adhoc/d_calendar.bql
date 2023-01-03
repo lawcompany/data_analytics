@@ -21,8 +21,8 @@ select b_date
 FROM
 (
   select *
-       , min(b_date) over(partition by year,year_week) as week_start_date
-       , max(b_date) over(partition by year,year_week) as week_end_date
+       , min(b_date) over(partition by case when year_week=52 then coalesce(bef_year,year) else year end,year_week) as week_start_date
+       , max(b_date) over(partition by case when year_week=52 then coalesce(bef_year,year) else year end,year_week) as week_end_date
   from
   (
     SELECT
@@ -41,7 +41,8 @@ FROM
       date_sub(d, interval 1 month) as mom_date,
       FORMAT_DATE('%Y%m%d',date_sub(d, interval 1 month)) as mom_date_string,
       date_sub(d, interval 7 day) as wow_date,
-      FORMAT_DATE('%Y%m%d',date_sub(d, interval 7 day)) as wow_date_string
+      FORMAT_DATE('%Y%m%d',date_sub(d, interval 7 day)) as wow_date_string,
+      lag(EXTRACT(YEAR FROM d),6) over(order by FORMAT_DATE('%Y%m%d', d)) as bef_year
     FROM (
       SELECT
         *
